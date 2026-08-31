@@ -10,14 +10,23 @@ export function Logo({ size = 64, className = "" }: LogoProps) {
   const logo = db.company?.logo;
 
   if (!logo) {
+    // شعار افتراضي إلا ما كاينش
     return (
-      <div className={`bg-gradient-to-br from-blue-600 to-blue-800 text-white font-bold flex items-center justify-center rounded-lg shadow-sm border border-blue-700 ${className}`} style={{ width: size, height: size, fontSize: size * 0.35 }}>
+      <div
+        className={`bg-gradient-to-br from-blue-600 to-blue-800 text-white font-bold flex items-center justify-center rounded-lg shadow-sm border border-blue-700 ${className}`}
+        style={{ width: size, height: size, fontSize: size * 0.35 }}
+      >
         FO
       </div>
     );
   }
 
   return (
-    <img src={logo} alt="Logo" className={`rounded-lg object-contain bg-white shadow-sm border border-line ${className}`} style={{ width: size, height: size }} />
+    <img
+      src={logo}
+      alt="Logo"
+      className={`rounded-lg object-contain bg-white shadow-sm border border-line ${className}`}
+      style={{ width: size, height: size }}
+    />
   );
 }

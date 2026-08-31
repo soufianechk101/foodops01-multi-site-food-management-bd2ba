@@ -45,6 +45,7 @@ export interface Company {
   targetFoodCost: number;
   allowNegativeStock: boolean;
   sitePrefixNumbering: boolean;
+  logo?: string;
 }
 
 export interface Site {

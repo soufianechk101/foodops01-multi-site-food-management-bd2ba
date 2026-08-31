@@ -1,3 +1,4 @@
+import { Logo } from "../components/Logo";
 import { useMemo, useState } from "react";
 import { BarChart3, Download, Printer } from "lucide-react";
 import { useApp } from "../state/AppContext";
@@ -523,6 +524,14 @@ export function ReportsPage() {
               </div>
             }
           >
+<div className="flex items-center gap-4 border-b border-line pb-4 mb-4">
+  <Logo size={64} />
+  <div className="flex-1">
+    <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
+    <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
+    <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
+  </div>
+</div>
             <DataTable cols={tableCols} rows={result.rows} rowKey={(r) => result.rows.indexOf(r) + "-" + String(r[result.cols[0]?.key ?? ""] ?? "")} pageSize={12} dense
               empty={<EmptyState title="Aucune donnée" sub="Aucun enregistrement sur ce périmètre et cette période." />}
             />

@@ -1,3 +1,13 @@
+import { Logo } from "./Logo";
+<div className="flex items-center gap-2.5 px-4 pb-5 pt-5">
+  <Logo size={42} />
+  <div>
+    <p className="font-display text-[17px] font-bold leading-none text-white">FoodOps</p>
+    <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-pine-300">
+      F&B Control Suite
+    </p>
+  </div>
+</div>
 import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeftRight,

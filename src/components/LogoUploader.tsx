@@ -15,10 +15,14 @@ export function LogoUploader() {
       alert("Veuillez sélectionner une image valide (PNG, JPG).");
       return;
     }
+
     setIsUploading(true);
     try {
       const resizedBase64 = await resizeImage(file, 200);
-      act((d) => { d.company.logo = resizedBase64; }, "Logo de l'entreprise mis à jour avec succès.");
+      act(
+        (d) => { d.company.logo = resizedBase64; },
+        "Logo de l'entreprise mis à jour avec succès."
+      );
     } catch (err) {
       console.error("Erreur image", err);
       alert("Erreur lors du traitement de l'image.");

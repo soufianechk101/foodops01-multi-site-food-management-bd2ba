@@ -9,6 +9,10 @@ import {
   ShieldCheck,
   Upload,
   UserRound,
+  CheckCircle2,
+  FlaskConical,
+  Play,
+  XCircle,
 } from "lucide-react";
 import { useApp } from "../state/AppContext";
 import {
@@ -32,8 +36,20 @@ import {
 import { pushAudit } from "../lib/engine";
 import { buildSeed } from "../lib/seed";
 import { runEngineTests, type TestResult } from "../lib/tests";
-import { CheckCircle2, FlaskConical, Play, XCircle } from "lucide-react";
+import {
+  downloadFile,
+  fmtDateTime,
+  hashPw,
+  nowISO,
+  ROLE_LABELS,
+  todayISO,
+  uid,
+} from "../lib/util";
+import type { DB, Role, Site, User } from "../types";
+
+// استيراد مكون رفع الشعار (مرة وحدة فقط)
 import { LogoUploader } from "../components/LogoUploader";
+
 function DiagnosticsPanel() {
   const [results, setResults] = useState<TestResult[] | null>(null);
   const [running, setRunning] = useState(false);
@@ -110,16 +126,6 @@ function DiagnosticsPanel() {
     </Card>
   );
 }
-import type { DB, Role, Site, User } from "../types";
-import {
-  downloadFile,
-  fmtDateTime,
-  hashPw,
-  nowISO,
-  ROLE_LABELS,
-  todayISO,
-  uid,
-} from "../lib/util";
 
 /* ============================================================
    UTILISATEURS & RÔLES
@@ -356,7 +362,9 @@ export function SettingsPage() {
 
       {tab === "societe" && (
         <Card title="Identité de la société" sub="Utilisée sur les documents imprimés et les rapports." className="max-w-3xl">
-            <LogoUploader />
+          {/* >>> هنا فين كيبان مكون رفع الشعار <<< */}
+          <LogoUploader />
+          
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Nom commercial"><Input value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} disabled={!editable} /></Field>
             <Field label="Raison sociale" className="sm:col-span-2"><Input value={company.legalName} onChange={(e) => setCompany({ ...company, legalName: e.target.value })} disabled={!editable} /></Field>
@@ -666,5 +674,3 @@ export function BackupPage() {
     </div>
   );
 }
-
-
