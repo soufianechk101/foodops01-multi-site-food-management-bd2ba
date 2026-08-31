@@ -1,0 +1,41 @@
+# ============================================================
+# FoodOps — Configuration electron-builder (installeur Windows)
+#
+# Utilisation (sur une machine disposant de Node 18+) :
+#   npm install
+#   npm run build                 # build Vite du renderer → dist/
+#   npx electron-builder --win    # génère FoodOps Setup x.x.x.exe
+# ============================================================
+appId: com.foodops.desktop
+productName: FoodOps
+copyright: Copyright © 2026 FoodOps Demo SARL
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: FoodOps-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: FoodOps
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: FoodOps-Portable-${version}.${ext}

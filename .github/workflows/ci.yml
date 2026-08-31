@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Typage, lint, tests moteur & build de production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupération du dépôt
+        uses: actions/checkout@v4
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installation des dépendances
+        run: npm ci
+
+      - name: Vérification TypeScript
+        run: npm run typecheck
+
+      - name: Lint ESLint
+        run: npm run lint
+
+      - name: Tests du moteur
+        run: npm test
+
+      - name: Build de production (Vite)
+        run: npm run build
+
+      - name: Publication du build
+        uses: actions/upload-artifact@v4
+        with:
+          name: foodops-dist
+          path: dist
+          retention-days: 14

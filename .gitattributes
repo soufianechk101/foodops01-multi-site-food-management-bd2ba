@@ -1,0 +1,19 @@
+# Normalisation des fins de ligne
+* text=auto eol=lf
+
+# Fichiers texte à forcer en LF
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+
+# Fichiers binaires (jamais de diff texte)
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.woff binary
+*.woff2 binary
