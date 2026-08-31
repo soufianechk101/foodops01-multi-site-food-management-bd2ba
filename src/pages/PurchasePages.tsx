@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Logo } from "../components/Logo";
-import { Eye, FileText, Pencil, Plus, Truck, Wallet, X } from "lucide-react";
+import { Eye, FileText, Pencil, Plus, Truck, Wallet, X, Printer, Clock } from "lucide-react"; // <-- زدت Printer و Clock هنا
 import { useApp, useUserId } from "../state/AppContext";
 import {
   Badge,
@@ -38,6 +38,7 @@ import {
 import type { Invoice, Payment, PayMethod, PurchaseOrder, Reception } from "../types";
 import {
   fmtDate,
+  fmtDateTime,
   fmtMoney,
   fmtNum,
   nowISO,
@@ -58,7 +59,6 @@ export function PurchaseOrdersPage() {
   const [detail, setDetail] = useState<PurchaseOrder | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; msg: string; fn: () => void } | null>(null);
 
-  // form
   const [supplierId, setSupplierId] = useState("");
   const [poSite, setPoSite] = useState(siteId ?? "");
   const [date, setDate] = useState(todayISO());
@@ -216,36 +216,59 @@ export function PurchaseOrdersPage() {
         </Field>
       </Modal>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Bon ${detail?.number}`} sub={detail ? `${db.suppliers.find((s) => s.id === detail.supplierId)?.name} · ${siteName(detail.siteId)}` : ""} width="max-w-2xl">
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-3xl">
         {detail && (
           <>
-            <div className="mb-3 flex items-center gap-2"><StatusBadge status={detail.status} /><Badge tone="slate">{fmtDate(detail.date)}</Badge></div>
-            <table className="w-full text-[12.5px]">
-              <thead>
-                <tr className="border-b border-line text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
-                  <th className="py-2">Produit</th>
-                  <th className="py-2 text-right">Commandé</th>
-                  <th className="py-2 text-right">Reçu</th>
-                  <th className="py-2 text-right">PU HT</th>
-                  <th className="py-2 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.lines.map((l, i) => {
-                  const p = db.products.find((x) => x.id === l.productId);
-                  return (
-                    <tr key={i} className="border-b border-line/70 last:border-0">
-                      <td className="py-2 font-semibold">{p?.name}</td>
-                      <td className="tnum py-2 text-right">{fmtNum(l.qty)}</td>
-                      <td className="tnum py-2 text-right font-bold text-pine-700">{fmtNum(l.receivedQty)}</td>
-                      <td className="tnum py-2 text-right text-ink2">{fmtMoney(l.unitCost, cur)}</td>
-                      <td className="tnum py-2 text-right font-bold">{fmtMoney(l.qty * l.unitCost, cur)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p className="mt-3 text-right text-[13px] font-semibold text-ink2">Total HT : <span className="tnum font-display text-[16px] font-bold text-ink">{fmtMoney(poTotal(detail), cur)}</span></p>
+            <div className="flex items-start gap-4 border-b border-line pb-4 mb-4">
+              <Logo size={72} />
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
+                <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
+                <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <h3 className="text-lg font-bold text-pine-700 font-mono">{detail.number}</h3>
+                <div className="flex justify-end mt-1"><StatusBadge status={detail.status} /></div>
+                <p className="text-xs text-mute mt-1">{fmtDate(detail.date)}</p>
+              </div>
+            </div>
+            <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm bg-paper p-3 rounded-md border border-line">
+              <span className="font-semibold text-ink2">Fournisseur :</span>
+              <span className="font-bold text-ink">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</span>
+              <span className="text-mute">·</span>
+              <span className="font-semibold text-ink2">Site :</span>
+              <span className="font-bold text-ink">{siteName(detail.siteId)}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12.5px]">
+                <thead>
+                  <tr className="border-b border-line text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
+                    <th className="py-2">Produit</th>
+                    <th className="py-2 text-right">Commandé</th>
+                    <th className="py-2 text-right">Reçu</th>
+                    <th className="py-2 text-right">PU HT</th>
+                    <th className="py-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.lines.map((l, i) => {
+                    const p = db.products.find((x) => x.id === l.productId);
+                    return (
+                      <tr key={i} className="border-b border-line/70 last:border-0">
+                        <td className="py-2 font-semibold">{p?.name}</td>
+                        <td className="tnum py-2 text-right">{fmtNum(l.qty)}</td>
+                        <td className="tnum py-2 text-right font-bold text-pine-700">{fmtNum(l.receivedQty)}</td>
+                        <td className="tnum py-2 text-right text-ink2">{fmtMoney(l.unitCost, cur)}</td>
+                        <td className="tnum py-2 text-right font-bold">{fmtMoney(l.qty * l.unitCost, cur)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 text-right text-[13px] font-semibold text-ink2 border-t border-line pt-3">
+              Total HT : <span className="tnum font-display text-[18px] font-bold text-ink">{fmtMoney(poTotal(detail), cur)}</span>
+            </p>
           </>
         )}
       </Modal>
@@ -387,89 +410,178 @@ export function ReceptionsPage() {
         </div>
       </Modal>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-3xl">
-  {detail && (
-    <>
-      {/* رأس الوثيقة مع الشعار ومعلومات الشركة */}
-      <div className="flex items-start gap-4 border-b border-line pb-4 mb-4">
-        <Logo size={72} />
-        <div className="flex-1">
-          <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
-          <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
-          <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
-        </div>
-        <div className="text-right shrink-0">
-          <h3 className="text-lg font-bold text-pine-700 font-mono">{detail.number}</h3>
-          <div className="flex justify-end mt-1"><StatusBadge status={detail.status} /></div>
-          <p className="text-xs text-mute mt-1">{fmtDate(detail.date)}</p>
-        </div>
-      </div>
+      {/* Modal Détail Réception (مع الشعار و Lot/DLC و زر PDF) */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-4xl">
+        {detail && (
+          <>
+            <div className="no-print flex items-start gap-4 border-b border-line pb-4 mb-4">
+              <Logo size={72} />
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
+                <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
+                <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" icon={<Printer size={13} />} onClick={() => window.print()}>
+                  PDF / Imprimer
+                </Button>
+              </div>
+            </div>
 
-      {/* معلومات المورد والموقع */}
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm bg-paper p-3 rounded-md border border-line">
-        <span className="font-semibold text-ink2">Fournisseur :</span>
-        <span className="font-bold text-ink">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</span>
-        <span className="text-mute">·</span>
-        <span className="font-semibold text-ink2">Site :</span>
-        <span className="font-bold text-ink">{siteName(detail.siteId)}</span>
-      </div>
+            <div className="print-only hidden print:block mb-6">
+              <div className="flex items-start justify-between border-b-2 border-pine-900 pb-4">
+                <div className="flex items-center gap-3">
+                  <Logo size={60} />
+                  <div>
+                    <h1 className="text-2xl font-bold text-pine-900">{db.company.name}</h1>
+                    <p className="text-[11px] text-ink2">{db.company.legalName}</p>
+                    <p className="text-[11px] text-ink2">ICE: {db.company.ice} | IF: {db.company.iff} | RC: {db.company.rc}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <h2 className="text-xl font-bold text-pine-900">BON DE RÉCEPTION</h2>
+                  <p className="font-mono text-[14px] font-bold text-pine-700">{detail.number}</p>
+                  <p className="text-[11px] text-ink2">{fmtDate(detail.date)}</p>
+                </div>
+              </div>
+            </div>
 
-      {/* الجدول مع إضافة Lot / DLC */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-[12.5px]">
-          <thead>
-            <tr className="border-b border-line text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
-              <th className="py-2">Produit</th>
-              <th className="py-2 text-right">Commandé</th>
-              <th className="py-2 text-right">Reçu</th>
-              <th className="py-2 text-right">PU HT</th>
-              <th className="py-2">Lot / DLC</th>
-              <th className="py-2 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {detail.lines.map((l, i) => {
-              const p = db.products.find((x) => x.id === l.productId);
-              // استرجاع Lot/DLC من آخر reception مطابقة لهاد المنتوج فهاد الـ PO
-              const reception = db.receptions.find(r => r.poId === detail.id);
-              const recLine = reception?.lines.find(rl => rl.productId === l.productId);
-              const hasLot = recLine?.lot;
-              const hasExpiry = recLine?.expiry;
-              
-              return (
-                <tr key={i} className="border-b border-line/70 last:border-0">
-                  <td className="py-2 font-semibold">{p?.name}</td>
-                  <td className="tnum py-2 text-right">{fmtNum(l.qty)}</td>
-                  <td className="tnum py-2 text-right font-bold text-pine-700">{fmtNum(l.receivedQty)}</td>
-                  <td className="tnum py-2 text-right text-ink2">{fmtMoney(l.unitCost, cur)}</td>
-                  <td className="py-2">
-                    {hasLot || hasExpiry ? (
-                      <div className="flex flex-col gap-0.5">
-                        {hasLot && <span className="text-[10.5px] font-mono text-ink2">{recLine?.lot}</span>}
-                        {hasExpiry && (
-                          <span className={`text-[10.5px] ${new Date(recLine!.expiry) < new Date() ? "font-bold text-bad" : "text-mute"}`}>
-                            ⏰ {fmtDate(recLine!.expiry)}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-mute">—</span>
-                    )}
-                  </td>
-                  <td className="tnum py-2 text-right font-bold">{fmtMoney(l.qty * l.unitCost, cur)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      
-      <p className="mt-4 text-right text-[13px] font-semibold text-ink2 border-t border-line pt-3">
-        Total HT : <span className="tnum font-display text-[18px] font-bold text-ink">{fmtMoney(detail.lines.reduce((s, l) => s + l.qty * l.unitCost, 0), cur)}</span>
-      </p>
-    </>
-  )}
-</Modal>
+            <div className="mb-6 grid grid-cols-2 gap-4">
+              <div className="rounded-lg border border-line bg-paper p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Fournisseur</p>
+                <p className="font-bold text-ink text-[15px]">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
+                <p className="text-[12px] text-ink2 mt-1">{db.suppliers.find((s) => s.id === detail.supplierId)?.address}</p>
+                <p className="text-[12px] text-ink2">{db.suppliers.find((s) => s.id === detail.supplierId)?.phone}</p>
+              </div>
+              <div className="rounded-lg border border-line bg-paper p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Site de réception</p>
+                <p className="font-bold text-ink text-[15px]">{siteName(detail.siteId)}</p>
+                <p className="text-[12px] text-ink2 mt-1">{db.sites.find((s) => s.id === detail.siteId)?.address}</p>
+                <p className="text-[12px] text-ink2">{db.sites.find((s) => s.id === detail.siteId)?.phone}</p>
+              </div>
+            </div>
+
+            <div className="mb-6 flex flex-wrap gap-4 text-[13px]">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-ink2">Référence facture / BL:</span>
+                <span className="font-mono font-bold text-ink">{detail.invoiceRef || "—"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-ink2">Statut:</span>
+                <StatusBadge status={detail.status} />
+              </div>
+              {detail.poId && (
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-ink2">Bon de commande:</span>
+                  <span className="font-mono font-bold text-pine-700">{db.purchaseOrders.find((p) => p.id === detail.poId)?.number}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-line">
+              <table className="w-full text-[12.5px]">
+                <thead className="bg-pine-900 text-pine-50">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left font-bold uppercase tracking-[0.1em] text-[10.5px]">Produit</th>
+                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">Reçu</th>
+                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">PU HT</th>
+                    <th className="px-3 py-2.5 text-left font-bold uppercase tracking-[0.1em] text-[10.5px]">Lot / DLC</th>
+                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">Total HT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.lines.map((l, i) => {
+                    const p = db.products.find((x) => x.id === l.productId);
+                    const isExpired = l.expiry && new Date(l.expiry) < new Date();
+                    return (
+                      <tr key={i} className="border-b border-line/70 last:border-0 hover:bg-pine-50/40">
+                        <td className="px-3 py-3 font-semibold text-ink">{p?.name}</td>
+                        <td className="px-3 py-3 text-right">
+                          <span className="tnum font-bold text-pine-700">{fmtNum(l.receivedQty)}</span>
+                          <span className="text-[10px] text-mute ml-1">{db.units.find((u) => u.id === p?.unitId)?.code}</span>
+                        </td>
+                        <td className="px-3 py-3 text-right tnum text-ink2">{fmtMoney(l.unitCost, cur)}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex flex-col gap-0.5">
+                            {l.lot && (
+                              <span className="text-[10.5px] font-mono text-ink2 bg-paper px-1.5 py-0.5 rounded inline-block w-fit">
+                                {l.lot}
+                              </span>
+                            )}
+                            {l.expiry && (
+                              <span className={`text-[10.5px] font-semibold flex items-center gap-1 ${isExpired ? "text-bad font-bold" : "text-mute"}`}>
+                                <Clock size={10} />
+                                {fmtDate(l.expiry)}
+                                {isExpired && <span className="text-[9px] font-bold">(EXPIRÉ)</span>}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-right tnum font-bold text-ink">{fmtMoney(l.receivedQty * l.unitCost, cur)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-paper">
+                  <tr>
+                    <td colSpan={4} className="px-3 py-3 text-right font-bold text-ink2 text-[13px]">Total HT :</td>
+                    <td className="px-3 py-3 text-right tnum font-display text-[18px] font-bold text-pine-900">
+                      {fmtMoney(recTotal(detail), cur)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {detail.notes && (
+              <div className="mt-6 rounded-lg border border-line bg-paper p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Notes / Réserves</p>
+                <p className="text-[12.5px] text-ink2 leading-relaxed">{detail.notes}</p>
+              </div>
+            )}
+
+            <div className="print-only hidden print:block mt-8 pt-4 border-t border-line">
+              <div className="grid grid-cols-3 gap-8 text-[11px] text-ink2">
+                <div>
+                  <p className="font-bold text-pine-900 mb-2">Réceptionné par:</p>
+                  <div className="h-12 border-b border-line"></div>
+                  <p className="mt-1">{db.users.find((u) => u.id === detail.userId)?.name}</p>
+                </div>
+                <div>
+                  <p className="font-bold text-pine-900 mb-2">Validé par:</p>
+                  <div className="h-12 border-b border-line"></div>
+                  <p className="mt-1">Responsable stock</p>
+                </div>
+                <div>
+                  <p className="font-bold text-pine-900 mb-2">Fournisseur:</p>
+                  <div className="h-12 border-b border-line"></div>
+                  <p className="mt-1">Signature & Cachet</p>
+                </div>
+              </div>
+              <p className="mt-6 text-center text-[10px] text-mute">
+                Document généré le {fmtDateTime(nowISO())} · FoodOps - F&B Control Suite
+              </p>
+            </div>
+
+            <div className="no-print mt-6 flex justify-end gap-2">
+              {detail.status === "brouillon" && can("receptions.validate") && (
+                <Button 
+                  onClick={() => setConfirm({ 
+                    title: "Valider la réception ?", 
+                    msg: `La réception ${detail.number} augmentera le stock de ${siteName(detail.siteId)}.`, 
+                    fn: () => act((d) => validateReception(d, detail.id, userId), `Réception ${detail.number} validée — stock augmenté.`) 
+                  })}
+                >
+                  Valider
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setDetail(null)}>
+                Fermer
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
 
       <Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} title={confirm?.title ?? ""} message={confirm?.msg ?? ""} confirmLabel="Confirmer" />
     </div>
@@ -658,31 +770,125 @@ export function InvoicesPage() {
         </div>
       </Modal>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Facture ${detail?.number}`} sub={detail ? `${db.suppliers.find((s) => s.id === detail.supplierId)?.name} · échéance ${fmtDate(detail.dueDate)}` : ""} width="max-w-xl">
+      {/* Modal Détail Facture (مصلح ومخصص للفواتير مع الشعار و PDF) */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-3xl">
         {detail && (
           <>
-            <StatusBadge status={invoiceStatus(db, detail)} />
-            <table className="mt-3 w-full text-[12.5px]">
-              <tbody>
-                {detail.lines.map((l, i) => (
-                  <tr key={i} className="border-b border-line/70">
-                    <td className="py-2 font-semibold">{l.description}</td>
-                    <td className="tnum py-2 text-right text-ink2">{fmtMoney(l.amount, cur)} <span className="text-[10.5px] text-mute">(TVA {l.vatRate} %)</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {(() => {
-              const t = invoiceTotals(detail);
-              return (
-                <div className="mt-3 space-y-1 text-right text-[12.5px] font-semibold text-ink2">
-                  <p>Sous-total HT : <span className="tnum">{fmtMoney(t.ht, cur)}</span></p>
-                  <p>TVA : <span className="tnum">{fmtMoney(t.vat, cur)}</span></p>
-                  <p className="font-display text-[16px] font-bold text-ink">Total TTC : <span className="tnum">{fmtMoney(t.ttc, cur)}</span></p>
-                  <p className="text-ok">Déjà payé : <span className="tnum">{fmtMoney(invoicePaid(db, detail.id), cur)}</span></p>
+            <div className="no-print flex items-start gap-4 border-b border-line pb-4 mb-4">
+              <Logo size={72} />
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
+                <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
+                <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" icon={<Printer size={13} />} onClick={() => window.print()}>
+                  PDF / Imprimer
+                </Button>
+              </div>
+            </div>
+
+            <div className="print-only hidden print:block mb-6">
+              <div className="flex items-start justify-between border-b-2 border-pine-900 pb-4">
+                <div className="flex items-center gap-3">
+                  <Logo size={60} />
+                  <div>
+                    <h1 className="text-2xl font-bold text-pine-900">{db.company.name}</h1>
+                    <p className="text-[11px] text-ink2">{db.company.legalName}</p>
+                    <p className="text-[11px] text-ink2">ICE: {db.company.ice} | IF: {db.company.iff} | RC: {db.company.rc}</p>
+                  </div>
                 </div>
-              );
-            })()}
+                <div className="text-right">
+                  <h2 className="text-xl font-bold text-pine-900">FACTURE FOURNISSEUR</h2>
+                  <p className="font-mono text-[14px] font-bold text-pine-700">{detail.number}</p>
+                  <p className="text-[11px] text-ink2">{fmtDate(detail.date)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6 grid grid-cols-2 gap-4">
+              <div className="rounded-lg border border-line bg-paper p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Fournisseur</p>
+                <p className="font-bold text-ink text-[15px]">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
+              </div>
+              <div className="rounded-lg border border-line bg-paper p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Site concerné</p>
+                <p className="font-bold text-ink text-[15px]">{siteName(detail.siteId)}</p>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-lg border border-line">
+              <table className="w-full text-[12.5px]">
+                <thead className="bg-pine-900 text-pine-50">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left font-bold uppercase tracking-[0.1em] text-[10.5px]">Libellé</th>
+                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">Montant HT</th>
+                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">TVA %</th>
+                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">Total TTC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.lines.map((l, i) => {
+                    const ttc = l.amount + (l.amount * l.vatRate) / 100;
+                    return (
+                      <tr key={i} className="border-b border-line/70 last:border-0 hover:bg-pine-50/40">
+                        <td className="px-3 py-3 font-semibold text-ink">{l.description}</td>
+                        <td className="px-3 py-3 text-right tnum text-ink2">{fmtMoney(l.amount, cur)}</td>
+                        <td className="px-3 py-3 text-right tnum text-ink2">{l.vatRate} %</td>
+                        <td className="px-3 py-3 text-right tnum font-bold text-ink">{fmtMoney(ttc, cur)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-paper">
+                  {(() => {
+                    const t = invoiceTotals(detail);
+                    const paid = invoicePaid(db, detail.id);
+                    return (
+                      <>
+                        <tr>
+                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ink2">Sous-total HT :</td>
+                          <td className="px-3 py-2 text-right tnum font-bold text-ink">{fmtMoney(t.ht, cur)}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ink2">TVA :</td>
+                          <td className="px-3 py-2 text-right tnum font-bold text-ink">{fmtMoney(t.vat, cur)}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={3} className="px-3 py-3 text-right font-bold text-ink2 text-[14px]">Total TTC :</td>
+                          <td className="px-3 py-3 text-right tnum font-display text-[18px] font-bold text-pine-900">{fmtMoney(t.ttc, cur)}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ok">Déjà payé :</td>
+                          <td className="px-3 py-2 text-right tnum font-bold text-ok">{fmtMoney(paid, cur)}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={3} className="px-3 py-2 text-right font-bold text-bad">Reste à payer :</td>
+                          <td className="px-3 py-2 text-right tnum font-display text-[16px] font-bold text-bad">{fmtMoney(Math.max(t.ttc - paid, 0), cur)}</td>
+                        </tr>
+                      </>
+                    );
+                  })()}
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="print-only hidden print:block mt-8 pt-4 border-t border-line">
+              <p className="mt-6 text-center text-[10px] text-mute">
+                Document généré le {fmtDateTime(nowISO())} · FoodOps - F&B Control Suite
+              </p>
+            </div>
+
+            <div className="no-print mt-6 flex justify-end gap-2">
+              {invoiceStatus(db, detail) !== "payee" && can("purchases.create") && (
+                <Button variant="outline" icon={<Wallet size={13} />} onClick={() => { setDetail(null); setPayFor(detail); }}>
+                  Régler cette facture
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setDetail(null)}>
+                Fermer
+              </Button>
+            </div>
           </>
         )}
       </Modal>

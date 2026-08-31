@@ -211,3 +211,38 @@ input[type="number"] {
     display: none !important;
   }
 }
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  .print-root {
+    display: block !important;
+    background: white;
+    padding: 2rem;
+  }
+  
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  
+  .modal-overlay {
+    display: none !important;
+  }
+  
+  .modal-content {
+    box-shadow: none !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+}
+
+.print-only {
+  display: none;
+}
