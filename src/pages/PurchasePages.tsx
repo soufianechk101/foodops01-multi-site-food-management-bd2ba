@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Logo } from "../components/Logo";
 import { Eye, FileText, Pencil, Plus, Truck, Wallet, X } from "lucide-react";
 import { useApp, useUserId } from "../state/AppContext";
 import {
@@ -386,39 +387,89 @@ export function ReceptionsPage() {
         </div>
       </Modal>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Réception ${detail?.number}`} sub={detail ? `${db.suppliers.find((s) => s.id === detail.supplierId)?.name} · ${siteName(detail.siteId)} · ${fmtDate(detail.date)}` : ""} width="max-w-2xl">
-        {detail && (
-          <>
-            <div className="mb-3 flex items-center gap-2"><StatusBadge status={detail.status} />{detail.invoiceRef && <Badge tone="slate">{detail.invoiceRef}</Badge>}</div>
-            <table className="w-full text-[12.5px]">
-              <thead>
-                <tr className="border-b border-line text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
-                  <th className="py-2">Produit</th>
-                  <th className="py-2 text-right">Commandé</th>
-                  <th className="py-2 text-right">Reçu</th>
-                  <th className="py-2 text-right">PU HT</th>
-                  <th className="py-2">Lot / DLC</th>
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-3xl">
+  {detail && (
+    <>
+      {/* رأس الوثيقة مع الشعار ومعلومات الشركة */}
+      <div className="flex items-start gap-4 border-b border-line pb-4 mb-4">
+        <Logo size={72} />
+        <div className="flex-1">
+          <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
+          <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
+          <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <h3 className="text-lg font-bold text-pine-700 font-mono">{detail.number}</h3>
+          <div className="flex justify-end mt-1"><StatusBadge status={detail.status} /></div>
+          <p className="text-xs text-mute mt-1">{fmtDate(detail.date)}</p>
+        </div>
+      </div>
+
+      {/* معلومات المورد والموقع */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm bg-paper p-3 rounded-md border border-line">
+        <span className="font-semibold text-ink2">Fournisseur :</span>
+        <span className="font-bold text-ink">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</span>
+        <span className="text-mute">·</span>
+        <span className="font-semibold text-ink2">Site :</span>
+        <span className="font-bold text-ink">{siteName(detail.siteId)}</span>
+      </div>
+
+      {/* الجدول مع إضافة Lot / DLC */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12.5px]">
+          <thead>
+            <tr className="border-b border-line text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
+              <th className="py-2">Produit</th>
+              <th className="py-2 text-right">Commandé</th>
+              <th className="py-2 text-right">Reçu</th>
+              <th className="py-2 text-right">PU HT</th>
+              <th className="py-2">Lot / DLC</th>
+              <th className="py-2 text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detail.lines.map((l, i) => {
+              const p = db.products.find((x) => x.id === l.productId);
+              // استرجاع Lot/DLC من آخر reception مطابقة لهاد المنتوج فهاد الـ PO
+              const reception = db.receptions.find(r => r.poId === detail.id);
+              const recLine = reception?.lines.find(rl => rl.productId === l.productId);
+              const hasLot = recLine?.lot;
+              const hasExpiry = recLine?.expiry;
+              
+              return (
+                <tr key={i} className="border-b border-line/70 last:border-0">
+                  <td className="py-2 font-semibold">{p?.name}</td>
+                  <td className="tnum py-2 text-right">{fmtNum(l.qty)}</td>
+                  <td className="tnum py-2 text-right font-bold text-pine-700">{fmtNum(l.receivedQty)}</td>
+                  <td className="tnum py-2 text-right text-ink2">{fmtMoney(l.unitCost, cur)}</td>
+                  <td className="py-2">
+                    {hasLot || hasExpiry ? (
+                      <div className="flex flex-col gap-0.5">
+                        {hasLot && <span className="text-[10.5px] font-mono text-ink2">{recLine?.lot}</span>}
+                        {hasExpiry && (
+                          <span className={`text-[10.5px] ${new Date(recLine!.expiry) < new Date() ? "font-bold text-bad" : "text-mute"}`}>
+                            ⏰ {fmtDate(recLine!.expiry)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-mute">—</span>
+                    )}
+                  </td>
+                  <td className="tnum py-2 text-right font-bold">{fmtMoney(l.qty * l.unitCost, cur)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {detail.lines.map((l, i) => {
-                  const p = db.products.find((x) => x.id === l.productId);
-                  return (
-                    <tr key={i} className="border-b border-line/70 last:border-0">
-                      <td className="py-2 font-semibold">{p?.name}</td>
-                      <td className="tnum py-2 text-right text-ink2">{fmtNum(l.orderedQty)}</td>
-                      <td className="tnum py-2 text-right font-bold">{fmtNum(l.receivedQty)}</td>
-                      <td className="tnum py-2 text-right text-ink2">{fmtMoney(l.unitCost, cur)}</td>
-                      <td className="py-2 text-[11px] text-mute">{l.lot || "—"}{l.expiry ? ` · ${fmtDate(l.expiry)}` : ""}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p className="mt-3 text-right text-[13px] font-semibold text-ink2">Total HT : <span className="tnum font-display text-[16px] font-bold text-ink">{fmtMoney(recTotal(detail), cur)}</span></p>
-          </>
-        )}
-      </Modal>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      
+      <p className="mt-4 text-right text-[13px] font-semibold text-ink2 border-t border-line pt-3">
+        Total HT : <span className="tnum font-display text-[18px] font-bold text-ink">{fmtMoney(detail.lines.reduce((s, l) => s + l.qty * l.unitCost, 0), cur)}</span>
+      </p>
+    </>
+  )}
+</Modal>
 
       <Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} title={confirm?.title ?? ""} message={confirm?.msg ?? ""} confirmLabel="Confirmer" />
     </div>

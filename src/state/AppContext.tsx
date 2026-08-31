@@ -5,12 +5,21 @@ import {
   useMemo,
   useRef,
   useState,
+  useEffect,
   type ReactNode,
 } from "react";
+import localforage from "localforage";
 import type { DB, ID, Site, User } from "../types";
 import { buildSeed } from "../lib/seed";
 import { checkSiteAccess, pushAudit } from "../lib/engine";
 import { hashPw, nowISO } from "../lib/util";
+
+// إعداد localforage مرة وحدة فبداية التطبيق
+localforage.config({
+  name: "FoodOpsDB",
+  storeName: "app_state",
+  driver: localforage.INDEXEDDB, // نضمنو استخدام IndexedDB
+});
 
 const DB_KEY = "foodops-db-v3";
 const SESSION_KEY = "foodops-session-v3";
@@ -63,42 +72,21 @@ const ECONOME_PERMS = [
 
 function canFor(user: User | null, perm: string): boolean {
   if (!user) return false;
-  // L'espace propriétaire est strictement réservé au rôle Propriétaire.
   if (perm === "proprietaire.view") return user.role === "proprietaire";
   if (user.role === "proprietaire") return true;
   if (user.role === "admin") return true;
   if (user.role === "manager") return MANAGER_PERMS.includes(perm);
   if (user.role === "econome") return ECONOME_PERMS.includes(perm);
-  // contrôleur : lecture seule + exports
   return perm.endsWith(".view") || perm === "reports.export" || perm === "dashboard.view";
 }
 
-/* ---------- chargement / sauvegarde ---------- */
+/* ---------- chargement / sauvegarde (Async avec IndexedDB) ---------- */
 
-function loadDB(): DB {
+export async function persistDB(db: DB): Promise<void> {
   try {
-    const raw = localStorage.getItem(DB_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as DB;
-      if (parsed.version === 5 && Array.isArray(parsed.movements)) return parsed;
-    }
-  } catch {
-    console.warn("Base locale illisible — régénération du jeu de démonstration.");
-  }
-  const seeded = buildSeed();
-  try {
-    localStorage.setItem(DB_KEY, JSON.stringify(seeded));
-  } catch {
-    /* stockage indisponible : mode mémoire */
-  }
-  return seeded;
-}
-
-export function persistDB(db: DB): void {
-  try {
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-  } catch {
-    console.warn("Persistance impossible (stockage plein ?).");
+    await localforage.setItem(DB_KEY, JSON.stringify(db));
+  } catch (e) {
+    console.warn("Persistance impossible (stockage plein ?).", e);
   }
 }
 
@@ -107,7 +95,7 @@ export function persistDB(db: DB): void {
 interface AppCtx {
   db: DB;
   user: User | null;
-  siteId: ID | null; // null = tous les sites
+  siteId: ID | null;
   route: string;
   params: Record<string, unknown>;
   toasts: Toast[];
@@ -117,9 +105,7 @@ interface AppCtx {
   setSite: (id: ID | null) => void;
   toast: (msg: string, kind?: ToastKind) => void;
   dismissToast: (id: number) => void;
-  /** exécute une mutation du moteur de stock (clonage + audit + persistance + toast) */
   act: (fn: (d: DB) => void, okMsg?: string) => boolean;
-  /** remplace la base entière (restauration de sauvegarde) */
   replaceDB: (db: DB) => void;
   can: (perm: string) => boolean;
   checkSite: (siteId: ID) => boolean;
@@ -130,26 +116,62 @@ interface AppCtx {
 const Ctx = createContext<AppCtx | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [db, setDb] = useState<DB>(loadDB);
-  const dbRef = useRef(db);
-  dbRef.current = db;
-
-  const [user, setUser] = useState<User | null>(() => {
-    const id = localStorage.getItem(SESSION_KEY);
-    const d = dbRef.current;
-    return d.users.find((u) => u.id === id && u.active) ?? null;
-  });
-  const userRef = useRef(user);
-  userRef.current = user;
-
-  const [siteId, setSiteId] = useState<ID | null>(() => {
-    const stored = localStorage.getItem(SITE_KEY);
-    return stored === "all" ? null : stored ?? null;
-  });
+  const [db, setDb] = useState<DB | null>(null);
+  const dbRef = useRef<DB | null>(null);
+  
+  const [user, setUser] = useState<User | null>(null);
+  const userRef = useRef<User | null>(null);
+  
+  const [siteId, setSiteId] = useState<ID | null>(null);
   const [route, setRoute] = useState("dashboard");
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [isReady, setIsReady] = useState(false); // État de chargement initial
   const toastId = useRef(0);
+
+  // Initialisation asynchrone au montage du composant
+  useEffect(() => {
+    const initApp = async () => {
+      let currentDb: DB;
+      try {
+        const raw = await localforage.getItem<string>(DB_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as DB;
+          if (parsed.version === 5 && Array.isArray(parsed.movements)) {
+            currentDb = parsed;
+          } else {
+            currentDb = buildSeed();
+            await localforage.setItem(DB_KEY, JSON.stringify(currentDb));
+          }
+        } else {
+          currentDb = buildSeed();
+          await localforage.setItem(DB_KEY, JSON.stringify(currentDb));
+        }
+      } catch (e) {
+        console.warn("Erreur de chargement IndexedDB, fallback sur seed.", e);
+        currentDb = buildSeed();
+      }
+
+      setDb(currentDb);
+      dbRef.current = currentDb;
+
+      // Charger la session
+      const sessionId = await localforage.getItem<string>(SESSION_KEY);
+      if (sessionId) {
+        const foundUser = currentDb.users.find((u) => u.id === sessionId && u.active) ?? null;
+        setUser(foundUser);
+        userRef.current = foundUser;
+      }
+
+      // Charger le site
+      const storedSite = await localforage.getItem<string>(SITE_KEY);
+      setSiteId(storedSite === "all" ? null : (storedSite as ID | null));
+
+      setIsReady(true);
+    };
+
+    initApp();
+  }, []);
 
   const toast = useCallback((msg: string, kind: ToastKind = "success") => {
     const id = ++toastId.current;
@@ -162,15 +184,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const commit = useCallback((next: DB) => {
+    if (!dbRef.current) return;
     dbRef.current = next;
     setDb(next);
-    persistDB(next);
+    // Sauvegarde en arrière-plan (fire-and-forget) pour ne pas bloquer l'UI
+    persistDB(next).catch(console.error);
   }, []);
 
-  /** Mutation atomique : clone → moteur → persistance. Toute erreur
-      métier est convertie en message français (jamais d'erreur brute). */
   const act = useCallback(
     (fn: (d: DB) => void, okMsg?: string): boolean => {
+      if (!dbRef.current) return false;
       try {
         const clone = structuredClone(dbRef.current);
         fn(clone);
@@ -191,66 +214,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const replaceDB = useCallback(
-  (next: DB) => {
-    const currentUser = userRef.current;
-    const currentSiteId = localStorage.getItem(SITE_KEY);
+    (next: DB) => {
+      const currentUser = userRef.current;
+      const currentSiteId = siteId; // On utilise l'état actuel ou on le relit si besoin
 
-    // Vérifier que la base restaurée contient une structure utilisateur valide.
-    const restoredUser = currentUser
-      ? next.users.find(
-          (u) => u.id === currentUser.id && u.active
-        ) ?? null
-      : null;
+      const restoredUser = currentUser
+        ? next.users.find((u) => u.id === currentUser.id && u.active) ?? null
+        : null;
 
-    // Vérifier que le site sélectionné existe encore et reste accessible.
-    let restoredSiteId: ID | null = null;
-
-    if (currentSiteId && currentSiteId !== "all" && restoredUser) {
-      const siteExists = next.sites.some(
-        (s) => s.id === currentSiteId && s.status === "actif"
-      );
-
-      if (siteExists) {
-        try {
-          checkSiteAccess(next, restoredUser.id, currentSiteId);
-          restoredSiteId = currentSiteId;
-        } catch {
-          restoredSiteId = null;
+      let restoredSiteId: ID | null = null;
+      if (currentSiteId && currentSiteId !== "all" && restoredUser) {
+        const siteExists = next.sites.some((s) => s.id === currentSiteId && s.status === "actif");
+        if (siteExists) {
+          try {
+            checkSiteAccess(next, restoredUser.id, currentSiteId);
+            restoredSiteId = currentSiteId;
+          } catch {
+            restoredSiteId = null;
+          }
         }
       }
-    }
 
-    // Remplacer la base avant de finaliser l'état de session.
-    commit(next);
+      commit(next);
 
-    if (restoredUser) {
-      // Le même utilisateur existe encore dans la base restaurée.
-      setUser(restoredUser);
-      localStorage.setItem(SESSION_KEY, restoredUser.id);
+      if (restoredUser) {
+        setUser(restoredUser);
+        userRef.current = restoredUser;
+        localforage.setItem(SESSION_KEY, restoredUser.id).catch(console.error);
 
-      setSiteId(restoredSiteId);
-      localStorage.setItem(SITE_KEY, restoredSiteId ?? "all");
+        setSiteId(restoredSiteId);
+        localforage.setItem(SITE_KEY, restoredSiteId ?? "all").catch(console.error);
 
-      toast(
-        "Base de données restaurée. Votre session a été conservée.",
-        "success"
-      );
-    } else {
-      // L'utilisateur courant n'existe plus ou est désactivé
-      // dans la base restaurée : fermeture de session obligatoire.
-      localStorage.removeItem(SESSION_KEY);
-      localStorage.setItem(SITE_KEY, "all");
-      setUser(null);
-      setSiteId(null);
+        toast("Base de données restaurée. Votre session a été conservée.", "success");
+      } else {
+        localforage.removeItem(SESSION_KEY).catch(console.error);
+        localforage.setItem(SITE_KEY, "all").catch(console.error);
+        setUser(null);
+        userRef.current = null;
+        setSiteId(null);
 
-      toast(
-        "Base restaurée. Votre compte n'existe plus dans cette sauvegarde : vous avez été déconnecté.",
-        "warn"
-      );
-    }
-  },
-  [commit, toast]
-);
+        toast("Base restaurée. Votre compte n'existe plus dans cette sauvegarde : vous avez été déconnecté.", "warn");
+      }
+    },
+    [commit, toast, siteId]
+  );
 
   const nav = useCallback((r: string, p?: Record<string, unknown>) => {
     setRoute(r);
@@ -260,11 +267,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setSite = useCallback((id: ID | null) => {
     setSiteId(id);
-    localStorage.setItem(SITE_KEY, id ?? "all");
+    localforage.setItem(SITE_KEY, id ?? "all").catch(console.error);
   }, []);
 
   const login = useCallback(
     (username: string, password: string): boolean => {
+      if (!dbRef.current) return false;
       const d = dbRef.current;
       const u = d.users.find((x) => x.username === username.trim().toLowerCase());
       if (!u || u.passwordHash !== hashPw(password)) return false;
@@ -273,7 +281,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return false;
       }
       setUser(u);
-      localStorage.setItem(SESSION_KEY, u.id);
+      userRef.current = u;
+      localforage.setItem(SESSION_KEY, u.id).catch(console.error);
+      
       const clone = structuredClone(d);
       pushAudit(clone, {
         userId: u.id,
@@ -291,7 +301,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     const u = userRef.current;
-    if (u) {
+    if (u && dbRef.current) {
       const clone = structuredClone(dbRef.current);
       pushAudit(clone, {
         userId: u.id,
@@ -302,22 +312,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
       commit(clone);
     }
-    localStorage.removeItem(SESSION_KEY);
+    localforage.removeItem(SESSION_KEY).catch(console.error);
     setUser(null);
+    userRef.current = null;
   }, [commit]);
 
   const can = useCallback((perm: string) => canFor(userRef.current, perm), []);
 
   const allowedSites = useMemo(() => {
-    if (!user) return [];
+    if (!user || !db) return [];
     const active = db.sites.filter((s) => s.status === "actif");
     return user.siteIds === "all" ? active : active.filter((s) => (user.siteIds as ID[]).includes(s.id));
-  }, [db.sites, user]);
+  }, [db?.sites, user]);
 
   const checkSite = useCallback(
     (sid: ID): boolean => {
       const u = userRef.current;
-      if (!u) return false;
+      if (!u || !dbRef.current) return false;
       try {
         checkSiteAccess(dbRef.current, u.id, sid);
         return true;
@@ -330,11 +341,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const siteName = useCallback(
     (id: ID | null | undefined): string => {
+      if (!db) return "Tous les sites";
       if (!id) return "Tous les sites";
       return db.sites.find((s) => s.id === id)?.name ?? "Site inconnu";
     },
-    [db.sites]
+    [db]
   );
+
+  // Afficher un écran de chargement pendant l'initialisation d'IndexedDB
+  if (!isReady || !db) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'sans-serif' }}>
+        Chargement de FoodOps...
+      </div>
+    );
+  }
 
   const value: AppCtx = {
     db,
@@ -366,7 +387,6 @@ export function useApp(): AppCtx {
   return ctx;
 }
 
-/* utilitaire : id utilisateur courant pour le moteur */
 export function useUserId(): ID {
   const { user } = useApp();
   return user?.id ?? "u-admin";
