@@ -310,6 +310,28 @@ export interface Sale {
   createdAt: string;
 }
 
+/* ---------------- Retours fournisseur ---------------- */
+
+export interface SupplierReturnLine {
+  productId: ID;
+  qty: number; // Quantité saisie (en unité d'achat)
+}
+
+export type SupplierReturnStatus = "brouillon" | "valide" | "annule";
+
+export interface SupplierReturn {
+  id: ID;
+  number: string;
+  supplierId: ID;
+  siteId: ID;
+  date: string;
+  status: SupplierReturnStatus;
+  notes: string;
+  lines: SupplierReturnLine[];
+  userId: ID;
+  createdAt: string;
+}
+
 /* ---------------- Moteur de stock ---------------- */
 
 export interface StockMovement {
@@ -368,6 +390,7 @@ export interface DB {
   wastes: Waste[];
   inventories: InventoryDoc[];
   sales: Sale[];
+  supplierReturns?: SupplierReturn[]; // Optionnel pour compatibilité avec seed existant
   movements: StockMovement[];
   audit: AuditEntry[];
   sequences: Record<string, number>;

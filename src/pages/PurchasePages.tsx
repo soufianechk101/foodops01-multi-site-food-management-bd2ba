@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Logo } from "../components/Logo";
-import { Eye, FileText, Pencil, Plus, Truck, Wallet, X, Printer, Clock } from "lucide-react"; // <-- زدت Printer و Clock هنا
+import { Eye, FileText, Pencil, Plus, Truck, Wallet, X, Printer, Clock } from "lucide-react";
 import { useApp, useUserId } from "../state/AppContext";
 import {
   Badge,
@@ -192,35 +192,48 @@ export function PurchaseOrdersPage() {
         empty={<EmptyState title="Aucun bon de commande" sub="Créez votre premier bon de commande fournisseur pour initier le circuit d'achat." action={can("purchases.create") ? <Button icon={<Plus size={15} />} onClick={openNew}>Créer un bon</Button> : undefined} />}
       />
 
-      <Modal open={showNew} onClose={() => setShowNew(false)} title={editId ? `Modifier ${editing?.number}` : "Nouveau bon de commande"} sub="Enregistré en brouillon, sans impact sur le stock." width="max-w-3xl"
-        footer={<><Button variant="outline" onClick={() => setShowNew(false)}>Fermer</Button><Button disabled={!supplierId || !poSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={save}>Enregistrer</Button></>}
-      >
-        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Fournisseur" className="sm:col-span-2">
-            <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-              {db.suppliers.filter((s) => s.status === "actif").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Site livré">
-            <Select value={poSite} onChange={(e) => setPoSite(e.target.value)}>
-              {allowedSites.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Livraison prévue">
-            <Input type="date" value={expected} onChange={(e) => setExpected(e.target.value)} />
+      {/* Modal Nouveau/Modifier Bon - محسن */}
+      <Modal open={showNew} onClose={() => setShowNew(false)} title={editId ? `Modifier ${editing?.number}` : "Nouveau bon de commande"} sub="Enregistré en brouillon, sans impact sur le stock." width="max-w-4xl" className="max-h-[90vh]">
+        <div className="space-y-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Fournisseur" className="sm:col-span-2">
+              <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                {db.suppliers.filter((s) => s.status === "actif").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Site livré">
+              <Select value={poSite} onChange={(e) => setPoSite(e.target.value)}>
+                {allowedSites.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Livraison prévue">
+              <Input type="date" value={expected} onChange={(e) => setExpected(e.target.value)} />
+            </Field>
+          </div>
+          
+          <div className="border border-line rounded-md overflow-hidden">
+            <div className="max-h-[300px] overflow-y-auto">
+              <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} qtyLabel="Qté commandée" />
+            </div>
+          </div>
+          
+          <Field label="Notes">
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Conditions particulières…" rows={2} />
           </Field>
         </div>
-        <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} qtyLabel="Qté commandée" />
-        <Field label="Notes" className="mt-3">
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Conditions particulières…" />
-        </Field>
+        
+        <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-line">
+          <Button variant="outline" onClick={() => setShowNew(false)}>Fermer</Button>
+          <Button disabled={!supplierId || !poSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={save}>Enregistrer</Button>
+        </div>
       </Modal>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-3xl">
+      {/* Modal Détail Bon - محسن */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-4xl" className="max-h-[90vh]">
         {detail && (
-          <>
+          <div className="max-h-[calc(90vh-100px)] overflow-y-auto pr-2">
             <div className="flex items-start gap-4 border-b border-line pb-4 mb-4">
-              <Logo size={72} />
+              <Logo size={64} />
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
                 <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
@@ -232,6 +245,7 @@ export function PurchaseOrdersPage() {
                 <p className="text-xs text-mute mt-1">{fmtDate(detail.date)}</p>
               </div>
             </div>
+            
             <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm bg-paper p-3 rounded-md border border-line">
               <span className="font-semibold text-ink2">Fournisseur :</span>
               <span className="font-bold text-ink">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</span>
@@ -239,6 +253,7 @@ export function PurchaseOrdersPage() {
               <span className="font-semibold text-ink2">Site :</span>
               <span className="font-bold text-ink">{siteName(detail.siteId)}</span>
             </div>
+            
             <div className="overflow-x-auto">
               <table className="w-full text-[12.5px]">
                 <thead>
@@ -266,10 +281,11 @@ export function PurchaseOrdersPage() {
                 </tbody>
               </table>
             </div>
+            
             <p className="mt-4 text-right text-[13px] font-semibold text-ink2 border-t border-line pt-3">
               Total HT : <span className="tnum font-display text-[18px] font-bold text-ink">{fmtMoney(poTotal(detail), cur)}</span>
             </p>
-          </>
+          </div>
         )}
       </Modal>
 
@@ -381,41 +397,53 @@ export function ReceptionsPage() {
         empty={<EmptyState icon={<Truck size={24} />} title="Aucune réception" sub="Réceptionnez une livraison directe ou générez une réception depuis un bon de commande approuvé." action={can("receptions.create") ? <Button icon={<Plus size={15} />} onClick={openNew}>Créer une réception</Button> : undefined} />}
       />
 
-      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle réception" sub="Livraison directe — brouillon sans impact sur le stock." width="max-w-3xl"
-        footer={<><Button variant="outline" onClick={() => setShowNew(false)}>Fermer</Button><Button disabled={!supplierId || !recSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={save}>Enregistrer le brouillon</Button></>}
-      >
-        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Fournisseur" className="sm:col-span-2">
-            <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-              {db.suppliers.filter((s) => s.status === "actif").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Site de réception">
-            <Select value={recSite} onChange={(e) => setRecSite(e.target.value)}>
-              {allowedSites.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Date">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
+      {/* Modal Nouvelle Réception - محسن */}
+      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle réception" sub="Livraison directe — brouillon sans impact sur le stock." width="max-w-4xl" className="max-h-[90vh]">
+        <div className="space-y-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Fournisseur" className="sm:col-span-2">
+              <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                {db.suppliers.filter((s) => s.status === "actif").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Site de réception">
+              <Select value={recSite} onChange={(e) => setRecSite(e.target.value)}>
+                {allowedSites.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Date">
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+          </div>
+          
+          <div className="border border-line rounded-md overflow-hidden">
+            <div className="max-h-[300px] overflow-y-auto">
+              <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} showLot qtyLabel="Qté reçue" />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Référence facture / BL">
+              <Input value={invoiceRef} onChange={(e) => setInvoiceRef(e.target.value)} placeholder="ex. BL-2026-114" />
+            </Field>
+            <Field label="Notes">
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Réserves, manquants…" />
+            </Field>
+          </div>
         </div>
-        <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} showLot qtyLabel="Qté reçue" />
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Référence facture / BL">
-            <Input value={invoiceRef} onChange={(e) => setInvoiceRef(e.target.value)} placeholder="ex. BL-2026-114" />
-          </Field>
-          <Field label="Notes">
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Réserves, manquants…" />
-          </Field>
+        
+        <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-line">
+          <Button variant="outline" onClick={() => setShowNew(false)}>Fermer</Button>
+          <Button disabled={!supplierId || !recSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={save}>Enregistrer le brouillon</Button>
         </div>
       </Modal>
 
-      {/* Modal Détail Réception (مع الشعار و Lot/DLC و زر PDF) */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-4xl">
+      {/* Modal Détail Réception - محسن */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-4xl" className="max-h-[90vh]">
         {detail && (
-          <>
+          <div className="max-h-[calc(90vh-100px)] overflow-y-auto pr-2">
             <div className="no-print flex items-start gap-4 border-b border-line pb-4 mb-4">
-              <Logo size={72} />
+              <Logo size={64} />
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
                 <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
@@ -446,47 +474,43 @@ export function ReceptionsPage() {
               </div>
             </div>
 
-            <div className="mb-6 grid grid-cols-2 gap-4">
-              <div className="rounded-lg border border-line bg-paper p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Fournisseur</p>
-                <p className="font-bold text-ink text-[15px]">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
-                <p className="text-[12px] text-ink2 mt-1">{db.suppliers.find((s) => s.id === detail.supplierId)?.address}</p>
-                <p className="text-[12px] text-ink2">{db.suppliers.find((s) => s.id === detail.supplierId)?.phone}</p>
+            <div className="mb-4 grid grid-cols-2 gap-4">
+              <div className="rounded-lg border border-line bg-paper p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Fournisseur</p>
+                <p className="font-bold text-ink text-sm">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
               </div>
-              <div className="rounded-lg border border-line bg-paper p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Site de réception</p>
-                <p className="font-bold text-ink text-[15px]">{siteName(detail.siteId)}</p>
-                <p className="text-[12px] text-ink2 mt-1">{db.sites.find((s) => s.id === detail.siteId)?.address}</p>
-                <p className="text-[12px] text-ink2">{db.sites.find((s) => s.id === detail.siteId)?.phone}</p>
+              <div className="rounded-lg border border-line bg-paper p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Site de réception</p>
+                <p className="font-bold text-ink text-sm">{siteName(detail.siteId)}</p>
               </div>
             </div>
 
-            <div className="mb-6 flex flex-wrap gap-4 text-[13px]">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-ink2">Référence facture / BL:</span>
+            <div className="mb-4 flex flex-wrap gap-3 text-xs">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-ink2">Réf. BL:</span>
                 <span className="font-mono font-bold text-ink">{detail.invoiceRef || "—"}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <span className="font-semibold text-ink2">Statut:</span>
                 <StatusBadge status={detail.status} />
               </div>
               {detail.poId && (
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-ink2">Bon de commande:</span>
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold text-ink2">BC:</span>
                   <span className="font-mono font-bold text-pine-700">{db.purchaseOrders.find((p) => p.id === detail.poId)?.number}</span>
                 </div>
               )}
             </div>
 
             <div className="overflow-hidden rounded-lg border border-line">
-              <table className="w-full text-[12.5px]">
+              <table className="w-full text-[12px]">
                 <thead className="bg-pine-900 text-pine-50">
                   <tr>
-                    <th className="px-3 py-2.5 text-left font-bold uppercase tracking-[0.1em] text-[10.5px]">Produit</th>
-                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">Reçu</th>
-                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">PU HT</th>
-                    <th className="px-3 py-2.5 text-left font-bold uppercase tracking-[0.1em] text-[10.5px]">Lot / DLC</th>
-                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">Total HT</th>
+                    <th className="px-3 py-2 text-left font-bold uppercase tracking-[0.1em] text-[10px]">Produit</th>
+                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">Reçu</th>
+                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">PU HT</th>
+                    <th className="px-3 py-2 text-left font-bold uppercase tracking-[0.1em] text-[10px]">Lot / DLC</th>
+                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -494,38 +518,31 @@ export function ReceptionsPage() {
                     const p = db.products.find((x) => x.id === l.productId);
                     const isExpired = l.expiry && new Date(l.expiry) < new Date();
                     return (
-                      <tr key={i} className="border-b border-line/70 last:border-0 hover:bg-pine-50/40">
-                        <td className="px-3 py-3 font-semibold text-ink">{p?.name}</td>
-                        <td className="px-3 py-3 text-right">
-                          <span className="tnum font-bold text-pine-700">{fmtNum(l.receivedQty)}</span>
-                          <span className="text-[10px] text-mute ml-1">{db.units.find((u) => u.id === p?.unitId)?.code}</span>
+                      <tr key={i} className="border-b border-line/70 last:border-0">
+                        <td className="px-3 py-2 font-semibold text-ink text-xs">{p?.name}</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className="tnum font-bold text-pine-700 text-xs">{fmtNum(l.receivedQty)}</span>
                         </td>
-                        <td className="px-3 py-3 text-right tnum text-ink2">{fmtMoney(l.unitCost, cur)}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-3 py-2 text-right tnum text-ink2 text-xs">{fmtMoney(l.unitCost, cur)}</td>
+                        <td className="px-3 py-2">
                           <div className="flex flex-col gap-0.5">
-                            {l.lot && (
-                              <span className="text-[10.5px] font-mono text-ink2 bg-paper px-1.5 py-0.5 rounded inline-block w-fit">
-                                {l.lot}
-                              </span>
-                            )}
+                            {l.lot && <span className="text-[9px] font-mono text-ink2">{l.lot}</span>}
                             {l.expiry && (
-                              <span className={`text-[10.5px] font-semibold flex items-center gap-1 ${isExpired ? "text-bad font-bold" : "text-mute"}`}>
-                                <Clock size={10} />
+                              <span className={`text-[9px] font-semibold ${isExpired ? "text-bad font-bold" : "text-mute"}`}>
                                 {fmtDate(l.expiry)}
-                                {isExpired && <span className="text-[9px] font-bold">(EXPIRÉ)</span>}
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-right tnum font-bold text-ink">{fmtMoney(l.receivedQty * l.unitCost, cur)}</td>
+                        <td className="px-3 py-2 text-right tnum font-bold text-ink text-xs">{fmtMoney(l.receivedQty * l.unitCost, cur)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot className="bg-paper">
                   <tr>
-                    <td colSpan={4} className="px-3 py-3 text-right font-bold text-ink2 text-[13px]">Total HT :</td>
-                    <td className="px-3 py-3 text-right tnum font-display text-[18px] font-bold text-pine-900">
+                    <td colSpan={4} className="px-3 py-2 text-right font-bold text-ink2 text-xs">Total HT :</td>
+                    <td className="px-3 py-2 text-right tnum font-display text-sm font-bold text-pine-900">
                       {fmtMoney(recTotal(detail), cur)}
                     </td>
                   </tr>
@@ -534,9 +551,9 @@ export function ReceptionsPage() {
             </div>
 
             {detail.notes && (
-              <div className="mt-6 rounded-lg border border-line bg-paper p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Notes / Réserves</p>
-                <p className="text-[12.5px] text-ink2 leading-relaxed">{detail.notes}</p>
+              <div className="mt-4 rounded-lg border border-line bg-paper p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Notes</p>
+                <p className="text-xs text-ink2">{detail.notes}</p>
               </div>
             )}
 
@@ -558,12 +575,9 @@ export function ReceptionsPage() {
                   <p className="mt-1">Signature & Cachet</p>
                 </div>
               </div>
-              <p className="mt-6 text-center text-[10px] text-mute">
-                Document généré le {fmtDateTime(nowISO())} · FoodOps - F&B Control Suite
-              </p>
             </div>
 
-            <div className="no-print mt-6 flex justify-end gap-2">
+            <div className="no-print mt-4 flex justify-end gap-2 pt-4 border-t border-line">
               {detail.status === "brouillon" && can("receptions.validate") && (
                 <Button 
                   onClick={() => setConfirm({ 
@@ -579,7 +593,7 @@ export function ReceptionsPage() {
                 Fermer
               </Button>
             </div>
-          </>
+          </div>
         )}
       </Modal>
 
@@ -717,65 +731,74 @@ export function InvoicesPage() {
         empty={<EmptyState icon={<FileText size={24} />} title="Aucune facture" sub="Enregistrez les factures de vos fournisseurs pour suivre le crédit et les échéances." />}
       />
 
-      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle facture fournisseur" width="max-w-2xl"
-        footer={<><Button variant="outline" onClick={() => setShowNew(false)}>Annuler</Button><Button disabled={!fSup || !fLines.length || fLines.some((l) => !l.description.trim() || l.amount <= 0)} onClick={save}>Enregistrer</Button></>}
-      >
-        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Fournisseur" className="sm:col-span-2">
-            <Select value={fSup} onChange={(e) => setFSup(e.target.value)}>
-              {db.suppliers.filter((s) => s.status === "actif").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Site concerné">
-            <Select value={fSite} onChange={(e) => setFSite(e.target.value)}>
-              {allowedSites.map((s) => <option key={s.id} value={s.id}>{s.code}</option>)}
-            </Select>
-          </Field>
-          <Field label="Échéance">
-            <Input type="date" value={fDue} onChange={(e) => setFDue(e.target.value)} />
-          </Field>
-        </div>
-        <div className="rounded-md border border-line">
-          <table className="w-full text-[12.5px]">
-            <thead>
-              <tr className="border-b border-line bg-paper/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
-                <th className="px-2.5 py-2">Libellé</th>
-                <th className="w-32 px-2 py-2 text-right">Montant HT</th>
-                <th className="w-24 px-2 py-2 text-right">TVA %</th>
-                <th className="w-10" />
-              </tr>
-            </thead>
-            <tbody>
-              {fLines.map((l, i) => (
-                <tr key={i} className="border-b border-line/70 last:border-0">
-                  <td className="px-1.5 py-1.5"><Input value={l.description} onChange={(e) => setFLines(fLines.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} placeholder="Livraison marchandises…" className="h-8.5" /></td>
-                  <td className="px-1.5 py-1.5"><Input type="number" min={0} step="0.01" value={l.amount || ""} onChange={(e) => setFLines(fLines.map((x, j) => (j === i ? { ...x, amount: parseFloat(e.target.value) || 0 } : x)))} className="h-8.5 text-right tnum" /></td>
-                  <td className="px-1.5 py-1.5"><Input type="number" min={0} value={l.vatRate} onChange={(e) => setFLines(fLines.map((x, j) => (j === i ? { ...x, vatRate: parseFloat(e.target.value) || 0 } : x)))} className="h-8.5 text-right tnum" /></td>
-                  <td className="pr-1.5 text-center"><Button variant="ghost" size="sm" onClick={() => setFLines(fLines.filter((_, j) => j !== i))} icon={<X size={13} />} title="Retirer" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="flex items-center justify-between px-2.5 py-2">
-            <Button variant="outline" size="sm" icon={<Plus size={13} />} onClick={() => setFLines([...fLines, { description: "", amount: 0, vatRate: db.company.defaultVat }])}>Ajouter une ligne</Button>
-            {(() => {
-              const t = invoiceTotals({ lines: fLines });
-              return (
-                <p className="text-[12px] font-semibold text-ink2">
-                  HT {fmtMoney(t.ht, cur)} · TVA {fmtMoney(t.vat, cur)} · <span className="font-display text-[14px] font-bold text-ink">TTC {fmtMoney(t.ttc, cur)}</span>
-                </p>
-              );
-            })()}
+      {/* Modal Nouvelle Facture - محسن */}
+      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle facture fournisseur" width="max-w-3xl" className="max-h-[90vh]">
+        <div className="space-y-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Fournisseur" className="sm:col-span-2">
+              <Select value={fSup} onChange={(e) => setFSup(e.target.value)}>
+                {db.suppliers.filter((s) => s.status === "actif").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Site concerné">
+              <Select value={fSite} onChange={(e) => setFSite(e.target.value)}>
+                {allowedSites.map((s) => <option key={s.id} value={s.id}>{s.code}</option>)}
+              </Select>
+            </Field>
+            <Field label="Échéance">
+              <Input type="date" value={fDue} onChange={(e) => setFDue(e.target.value)} />
+            </Field>
           </div>
+          
+          <div className="rounded-md border border-line">
+            <div className="max-h-[250px] overflow-y-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-line bg-paper/70 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-mute sticky top-0">
+                    <th className="px-2 py-2">Libellé</th>
+                    <th className="w-32 px-2 py-2 text-right">Montant HT</th>
+                    <th className="w-24 px-2 py-2 text-right">TVA %</th>
+                    <th className="w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {fLines.map((l, i) => (
+                    <tr key={i} className="border-b border-line/70 last:border-0">
+                      <td className="px-1.5 py-1.5"><Input value={l.description} onChange={(e) => setFLines(fLines.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} placeholder="Livraison marchandises…" className="h-8 text-xs" /></td>
+                      <td className="px-1.5 py-1.5"><Input type="number" min={0} step="0.01" value={l.amount || ""} onChange={(e) => setFLines(fLines.map((x, j) => (j === i ? { ...x, amount: parseFloat(e.target.value) || 0 } : x)))} className="h-8 text-xs text-right tnum" /></td>
+                      <td className="px-1.5 py-1.5"><Input type="number" min={0} value={l.vatRate} onChange={(e) => setFLines(fLines.map((x, j) => (j === i ? { ...x, vatRate: parseFloat(e.target.value) || 0 } : x)))} className="h-8 text-xs text-right tnum" /></td>
+                      <td className="pr-1.5 text-center"><Button variant="ghost" size="sm" onClick={() => setFLines(fLines.filter((_, j) => j !== i))} icon={<X size={12} />} title="Retirer" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between px-2.5 py-2 border-t border-line">
+              <Button variant="outline" size="sm" icon={<Plus size={12} />} onClick={() => setFLines([...fLines, { description: "", amount: 0, vatRate: db.company.defaultVat }])}>Ajouter</Button>
+              {(() => {
+                const t = invoiceTotals({ lines: fLines });
+                return (
+                  <p className="text-xs font-semibold text-ink2">
+                    HT {fmtMoney(t.ht, cur)} · TVA {fmtMoney(t.vat, cur)} · <span className="font-display text-sm font-bold text-ink">TTC {fmtMoney(t.ttc, cur)}</span>
+                  </p>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-line">
+          <Button variant="outline" onClick={() => setShowNew(false)}>Annuler</Button>
+          <Button disabled={!fSup || !fLines.length || fLines.some((l) => !l.description.trim() || l.amount <= 0)} onClick={save}>Enregistrer</Button>
         </div>
       </Modal>
 
-      {/* Modal Détail Facture (مصلح ومخصص للفواتير مع الشعار و PDF) */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-3xl">
+      {/* Modal Détail Facture - محسن */}
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-3xl" className="max-h-[90vh]">
         {detail && (
-          <>
+          <div className="max-h-[calc(90vh-100px)] overflow-y-auto pr-2">
             <div className="no-print flex items-start gap-4 border-b border-line pb-4 mb-4">
-              <Logo size={72} />
+              <Logo size={64} />
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
                 <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
@@ -806,36 +829,36 @@ export function InvoicesPage() {
               </div>
             </div>
 
-            <div className="mb-6 grid grid-cols-2 gap-4">
-              <div className="rounded-lg border border-line bg-paper p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Fournisseur</p>
-                <p className="font-bold text-ink text-[15px]">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
+            <div className="mb-4 grid grid-cols-2 gap-4">
+              <div className="rounded-lg border border-line bg-paper p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Fournisseur</p>
+                <p className="font-bold text-ink text-sm">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
               </div>
-              <div className="rounded-lg border border-line bg-paper p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-2">Site concerné</p>
-                <p className="font-bold text-ink text-[15px]">{siteName(detail.siteId)}</p>
+              <div className="rounded-lg border border-line bg-paper p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Site concerné</p>
+                <p className="font-bold text-ink text-sm">{siteName(detail.siteId)}</p>
               </div>
             </div>
 
             <div className="overflow-hidden rounded-lg border border-line">
-              <table className="w-full text-[12.5px]">
+              <table className="w-full text-[12px]">
                 <thead className="bg-pine-900 text-pine-50">
                   <tr>
-                    <th className="px-3 py-2.5 text-left font-bold uppercase tracking-[0.1em] text-[10.5px]">Libellé</th>
-                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">Montant HT</th>
-                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">TVA %</th>
-                    <th className="px-3 py-2.5 text-right font-bold uppercase tracking-[0.1em] text-[10.5px]">Total TTC</th>
+                    <th className="px-3 py-2 text-left font-bold uppercase tracking-[0.1em] text-[10px]">Libellé</th>
+                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">Montant HT</th>
+                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">TVA %</th>
+                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">Total TTC</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detail.lines.map((l, i) => {
                     const ttc = l.amount + (l.amount * l.vatRate) / 100;
                     return (
-                      <tr key={i} className="border-b border-line/70 last:border-0 hover:bg-pine-50/40">
-                        <td className="px-3 py-3 font-semibold text-ink">{l.description}</td>
-                        <td className="px-3 py-3 text-right tnum text-ink2">{fmtMoney(l.amount, cur)}</td>
-                        <td className="px-3 py-3 text-right tnum text-ink2">{l.vatRate} %</td>
-                        <td className="px-3 py-3 text-right tnum font-bold text-ink">{fmtMoney(ttc, cur)}</td>
+                      <tr key={i} className="border-b border-line/70 last:border-0">
+                        <td className="px-3 py-2 font-semibold text-ink text-xs">{l.description}</td>
+                        <td className="px-3 py-2 text-right tnum text-ink2 text-xs">{fmtMoney(l.amount, cur)}</td>
+                        <td className="px-3 py-2 text-right tnum text-ink2 text-xs">{l.vatRate} %</td>
+                        <td className="px-3 py-2 text-right tnum font-bold text-ink text-xs">{fmtMoney(ttc, cur)}</td>
                       </tr>
                     );
                   })}
@@ -847,24 +870,24 @@ export function InvoicesPage() {
                     return (
                       <>
                         <tr>
-                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ink2">Sous-total HT :</td>
-                          <td className="px-3 py-2 text-right tnum font-bold text-ink">{fmtMoney(t.ht, cur)}</td>
+                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ink2 text-xs">Sous-total HT :</td>
+                          <td className="px-3 py-2 text-right tnum font-bold text-ink text-xs">{fmtMoney(t.ht, cur)}</td>
                         </tr>
                         <tr>
-                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ink2">TVA :</td>
-                          <td className="px-3 py-2 text-right tnum font-bold text-ink">{fmtMoney(t.vat, cur)}</td>
+                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ink2 text-xs">TVA :</td>
+                          <td className="px-3 py-2 text-right tnum font-bold text-ink text-xs">{fmtMoney(t.vat, cur)}</td>
                         </tr>
                         <tr>
-                          <td colSpan={3} className="px-3 py-3 text-right font-bold text-ink2 text-[14px]">Total TTC :</td>
-                          <td className="px-3 py-3 text-right tnum font-display text-[18px] font-bold text-pine-900">{fmtMoney(t.ttc, cur)}</td>
+                          <td colSpan={3} className="px-3 py-2 text-right font-bold text-ink2 text-xs">Total TTC :</td>
+                          <td className="px-3 py-2 text-right tnum font-display text-sm font-bold text-pine-900">{fmtMoney(t.ttc, cur)}</td>
                         </tr>
                         <tr>
-                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ok">Déjà payé :</td>
-                          <td className="px-3 py-2 text-right tnum font-bold text-ok">{fmtMoney(paid, cur)}</td>
+                          <td colSpan={3} className="px-3 py-2 text-right font-semibold text-ok text-xs">Déjà payé :</td>
+                          <td className="px-3 py-2 text-right tnum font-bold text-ok text-xs">{fmtMoney(paid, cur)}</td>
                         </tr>
                         <tr>
-                          <td colSpan={3} className="px-3 py-2 text-right font-bold text-bad">Reste à payer :</td>
-                          <td className="px-3 py-2 text-right tnum font-display text-[16px] font-bold text-bad">{fmtMoney(Math.max(t.ttc - paid, 0), cur)}</td>
+                          <td colSpan={3} className="px-3 py-2 text-right font-bold text-bad text-xs">Reste à payer :</td>
+                          <td className="px-3 py-2 text-right tnum font-display text-sm font-bold text-bad">{fmtMoney(Math.max(t.ttc - paid, 0), cur)}</td>
                         </tr>
                       </>
                     );
@@ -873,13 +896,7 @@ export function InvoicesPage() {
               </table>
             </div>
 
-            <div className="print-only hidden print:block mt-8 pt-4 border-t border-line">
-              <p className="mt-6 text-center text-[10px] text-mute">
-                Document généré le {fmtDateTime(nowISO())} · FoodOps - F&B Control Suite
-              </p>
-            </div>
-
-            <div className="no-print mt-6 flex justify-end gap-2">
+            <div className="no-print mt-4 flex justify-end gap-2 pt-4 border-t border-line">
               {invoiceStatus(db, detail) !== "payee" && can("purchases.create") && (
                 <Button variant="outline" icon={<Wallet size={13} />} onClick={() => { setDetail(null); setPayFor(detail); }}>
                   Régler cette facture
@@ -889,7 +906,7 @@ export function InvoicesPage() {
                 Fermer
               </Button>
             </div>
-          </>
+          </div>
         )}
       </Modal>
 
@@ -934,10 +951,8 @@ function PaymentModal({ invoice, onClose }: { invoice: Invoice | null; onClose: 
   };
 
   return (
-    <Modal open={!!invoice} onClose={onClose} title={`Règlement — ${invoice?.number}`} sub={`Reste dû : ${fmtMoney(remaining, cur)}`} width="max-w-md"
-      footer={<><Button variant="outline" onClick={onClose}>Annuler</Button><Button disabled={!amount || parseFloat(amount) <= 0} onClick={save}>Enregistrer le règlement</Button></>}
-    >
-      <div className="space-y-3">
+    <Modal open={!!invoice} onClose={onClose} title={`Règlement — ${invoice?.number}`} sub={`Reste dû : ${fmtMoney(remaining, cur)}`} width="max-w-md" className="max-h-[90vh]">
+      <div className="space-y-3 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
         <div className="flex gap-2">
           {[remaining, Math.round(remaining / 2 * 100) / 100].filter((v) => v > 0).map((v, i) => (
             <Button key={i} variant="outline" size="sm" onClick={() => setAmount(String(v))}>
@@ -965,6 +980,11 @@ function PaymentModal({ invoice, onClose }: { invoice: Invoice | null; onClose: 
         <Field label="Référence / notes">
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="N° de virement, chèque…" />
         </Field>
+      </div>
+      
+      <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-line">
+        <Button variant="outline" onClick={onClose}>Annuler</Button>
+        <Button disabled={!amount || parseFloat(amount) <= 0} onClick={save}>Enregistrer le règlement</Button>
       </div>
     </Modal>
   );
@@ -1016,9 +1036,9 @@ export function PaymentsPage() {
         footer={`${rows.length} règlement(s) · total ${fmtMoney(total, cur)}`}
         empty={<EmptyState icon={<Wallet size={24} />} title="Aucun règlement" sub="Depuis la page Factures, utilisez « Régler » pour enregistrer un paiement total ou partiel." />}
       />
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Règlement ${detail?.number}`} width="max-w-md">
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Règlement ${detail?.number}`} width="max-w-md" className="max-h-[90vh]">
         {detail && (
-          <div className="space-y-2 text-[13px]">
+          <div className="space-y-2 text-[13px] max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
             <p><span className="text-mute">Fournisseur :</span> <strong>{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</strong></p>
             <p><span className="text-mute">Montant :</span> <strong className="tnum">{fmtMoney(detail.amount, cur)}</strong></p>
             <p><span className="text-mute">Mode :</span> {payMethodLabel(detail.method)}</p>

@@ -78,6 +78,42 @@ export const fmtNum = (n: number, dec = 2): string =>
 export const fmtPct = (n: number, dec = 1): string =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: dec }).format(n) + " %";
 
+/* ---------- Conversion d'unités (Centralisée) ---------- */
+// 👇 هادو هوما الدوال الجديدة لي زدناهم للتحويل بين الوحدات
+
+/**
+ * Convertit une quantité d'unité d'achat vers l'unité de base.
+ * Ex: 10 sacs × 25 = 250 kg
+ */
+export function toBaseUnit(qty: number, conversion: number): number {
+  if (conversion <= 0 || !Number.isFinite(conversion)) {
+    throw new Error("La conversion doit être un nombre strictement supérieur à zéro.");
+  }
+  return Math.round(qty * conversion * 10000) / 10000; // Précision 4 décimales
+}
+
+/**
+ * Convertit une quantité de l'unité de base vers l'unité d'achat.
+ * Ex: 250 kg / 25 = 10 sacs
+ */
+export function fromBaseUnit(qty: number, conversion: number): number {
+  if (conversion <= 0 || !Number.isFinite(conversion)) {
+    throw new Error("La conversion doit être un nombre strictement supérieur à zéro.");
+  }
+  return Math.round((qty / conversion) * 10000) / 10000;
+}
+
+/**
+ * Calcule le coût unitaire de base à partir du coût d'achat.
+ * Ex: 250 MAD/sac / 25 = 10 MAD/kg
+ */
+export function getBaseCost(purchaseCost: number, conversion: number): number {
+  if (conversion <= 0 || !Number.isFinite(conversion)) {
+    throw new Error("La conversion doit être un nombre strictement supérieur à zéro.");
+  }
+  return Math.round((purchaseCost / conversion) * 10000) / 10000;
+}
+
 /* ---------- sécurité (démo) ---------- */
 
 export const hashPw = (pw: string): string => {

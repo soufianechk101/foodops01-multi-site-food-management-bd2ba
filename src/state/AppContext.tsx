@@ -213,50 +213,67 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [commit, toast]
   );
 
+  // ============================================================
+  // PATCH: Restore Session & Site Selection Logic (Harden & Isolate)
+  // ============================================================
   const replaceDB = useCallback(
     (next: DB) => {
+      // 1. Lire la session AVANT remplacement
       const currentUser = userRef.current;
-      const currentSiteId = siteId; // On utilise l'état actuel ou on le relit si besoin
+      const storedSiteId = localStorage.getItem(SITE_KEY);
 
-      const restoredUser = currentUser
-        ? next.users.find((u) => u.id === currentUser.id && u.active) ?? null
-        : null;
-
-      let restoredSiteId: ID | null = null;
-      if (currentSiteId && currentSiteId !== "all" && restoredUser) {
-        const siteExists = next.sites.some((s) => s.id === currentSiteId && s.status === "actif");
-        if (siteExists) {
-          try {
-            checkSiteAccess(next, restoredUser.id, currentSiteId);
-            restoredSiteId = currentSiteId;
-          } catch {
-            restoredSiteId = null;
-          }
-        }
+      // 2. Retrouver l'utilisateur dans la base restaurée
+      let restoredUser: User | null = null;
+      if (currentUser) {
+        restoredUser = next.users.find((u) => u.id === currentUser.id && u.active) ?? null;
       }
 
+      // 3. Réconcilier le site sélectionné (Logical Sequence)
+      let finalSiteId: ID | null = null;
+      if (storedSiteId && storedSiteId !== "all" && restoredUser) {
+        // Site exists & Site active?
+        const siteExistsAndActive = next.sites.some((s) => s.id === storedSiteId && s.status === "actif");
+        
+        if (siteExistsAndActive) {
+          try {
+            // User authorized? (On réutilise la règle métier existante — pas de duplication)
+            checkSiteAccess(next, restoredUser.id, storedSiteId);
+            finalSiteId = storedSiteId; // YES → preserve site
+          } catch {
+            finalSiteId = null; // NO → siteId = null (User has no access)
+          }
+        }
+        // If site doesn't exist or is inactive, finalSiteId remains null.
+      }
+      // If storedSiteId was "all" or missing, finalSiteId remains null (Case 1).
+
+      // 4. Remplacer la base (persistance via le mécanisme existant)
       commit(next);
 
+      // 5. Mettre à jour l'état React + localforage
       if (restoredUser) {
+        // ✅ Utilisateur retrouvé et actif → on garde la session
         setUser(restoredUser);
         userRef.current = restoredUser;
         localforage.setItem(SESSION_KEY, restoredUser.id).catch(console.error);
 
-        setSiteId(restoredSiteId);
-        localforage.setItem(SITE_KEY, restoredSiteId ?? "all").catch(console.error);
+        setSiteId(finalSiteId);
+        localforage.setItem(SITE_KEY, finalSiteId ?? "all").catch(console.error);
 
         toast("Base de données restaurée. Votre session a été conservée.", "success");
       } else {
+        // ❌ Utilisateur absent ou désactivé → invalidation de session propre
+        // On n'appelle PAS logout() pour éviter un audit erroné sur l'ancienne base
         localforage.removeItem(SESSION_KEY).catch(console.error);
         localforage.setItem(SITE_KEY, "all").catch(console.error);
         setUser(null);
         userRef.current = null;
         setSiteId(null);
 
-        toast("Base restaurée. Votre compte n'existe plus dans cette sauvegarde : vous avez été déconnecté.", "warn");
+        toast("Base restaurée. Votre compte n'existe plus dans cette sauvegarde ou est désactivé : vous avez été déconnecté.", "warn");
       }
     },
-    [commit, toast, siteId]
+    [commit, toast]
   );
 
   const nav = useCallback((r: string, p?: Record<string, unknown>) => {

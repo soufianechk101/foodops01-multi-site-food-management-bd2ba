@@ -570,7 +570,7 @@ export function WastePage() {
         empty={<EmptyState icon={<Trash2 size={24} />} title="Aucune perte enregistrée" sub="Déclarez les expirations, casses et erreurs de préparation pour refléter le stock réel." />}
       />
 
-      <Modal open={showNew} onClose={() => setShowNew(false)} title="Déclarer une perte" sub="Brouillon — le stock ne diminue qu'à la validation." width="max-w-3xl"
+      <Modal open={showNew} onClose={() => setShowNew(false)} title="Déclarer une perte" sub="Brouillon — le stock ne diminue qu'à la validation." width="max-h"
         footer={<><Button variant="outline" onClick={() => setShowNew(false)}>Fermer</Button><Button disabled={!wSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={create}>Enregistrer le brouillon</Button></>}
       >
         <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">

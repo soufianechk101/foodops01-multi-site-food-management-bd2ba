@@ -146,7 +146,7 @@ export function ConsumptionsPage() {
         empty={<EmptyState icon={<Soup size={24} />} title="Aucune consommation" sub="Enregistrez les sorties de matières par service (déjeuner, dîner, bar…) pour suivre le coût réel." action={can("consumption.create") ? <Button icon={<Plus size={15} />} onClick={() => setShowNew(true)}>Créer une consommation</Button> : undefined} />}
       />
 
-      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle consommation" sub="Brouillon — le stock ne diminue qu'à la validation." width="max-w-3xl"
+      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle consommation" sub="Brouillon — le stock ne diminue qu'à la validation." width="max-h"
         footer={<><Button variant="outline" onClick={() => setShowNew(false)}>Fermer</Button><Button disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={create}>Enregistrer le brouillon</Button></>}
       >
         <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">

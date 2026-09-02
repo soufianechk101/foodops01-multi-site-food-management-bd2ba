@@ -246,3 +246,21 @@ input[type="number"] {
 .print-only {
   display: none;
 }
+/* تحسين الـ Modal باش يبان فـ الوسط ويخدم مزيان */
+.modal-overlay {
+  @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50;
+}
+
+.modal-content {
+  @apply relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-lg bg-paper shadow-xl;
+}
+
+/* تحسين الجدول باش مايخرجش من الـ Modal */
+.table-container {
+  @apply overflow-x-auto max-h-[400px] overflow-y-auto;
+}
+
+/* تحسين الـ LineEditor */
+.line-editor-container {
+  @apply max-h-[300px] overflow-y-auto;
+}

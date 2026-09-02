@@ -278,53 +278,54 @@ export function Stat({
 
 /* ================= modales ================= */
 
-export function Modal({
-  open,
-  onClose,
-  title,
-  sub,
+export function Modal({ 
+  open, 
+  onClose, 
+  title, 
+  sub, 
+  children, 
+  footer, 
   width = "max-w-2xl",
-  children,
-  footer,
+  className = ""
 }: {
   open: boolean;
   onClose: () => void;
-  title: ReactNode;
-  sub?: ReactNode;
-  width?: string;
+  title: string;
+  sub?: string;
   children: ReactNode;
   footer?: ReactNode;
+  width?: string;
+  className?: string;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [open, onClose]);
   if (!open) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-pine-950/55 p-4 pt-[7vh] anim-fade" onMouseDown={onClose}>
-      <div
-        className={cn("anim-pop w-full rounded-xl border border-line bg-card shadow-2xl", width)}
-        onMouseDown={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-          <div>
-            <h2 className="font-display text-[17px] font-bold text-ink">{title}</h2>
-            {sub && <p className="mt-0.5 text-[12.5px] text-mute">{sub}</p>}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
+      <div className={`relative w-full ${width} my-8 mx-auto ${className}`}>
+        <div className="relative bg-paper rounded-lg shadow-xl max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-start justify-between p-6 border-b border-line shrink-0">
+            <div>
+              <h2 className="text-xl font-bold text-ink">{title}</h2>
+              {sub && <p className="text-sm text-mute mt-1">{sub}</p>}
+            </div>
+            <button onClick={onClose} className="text-mute hover:text-ink">
+              <X size={20} />
+            </button>
           </div>
-          <IconBtn title="Fermer" onClick={onClose}>
-            <X size={16} />
-          </IconBtn>
-        </header>
-        <div className="max-h-[68vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && (
-          <footer className="flex items-center justify-end gap-2 border-t border-line bg-paper/60 px-5 py-3.5 rounded-b-xl">
-            {footer}
-          </footer>
-        )}
+          
+          {/* Content - قابل للتمرير */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {children}
+          </div>
+          
+          {/* Footer */}
+          {footer && (
+            <div className="flex items-center justify-end gap-2 p-6 border-t border-line shrink-0">
+              {footer}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
