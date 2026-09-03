@@ -1,4 +1,4 @@
-import { Logo } from "../components/Logo"; // <-- Hna ghir Logo, mzina LogoMark
+import { Logo } from "../components/Logo";
 import { useMemo, useState } from "react";
 import { BarChart3, Download, Printer } from "lucide-react";
 import { useApp } from "../state/AppContext";
@@ -28,6 +28,17 @@ import {
   todayISO,
 } from "../lib/util";
 import type { DB } from "../types";
+
+// استيراد نظام تصميم PDF الجديد
+import {
+  PdfLayout,
+  PdfHeader,
+  PdfReportMeta,
+  PdfKpi,
+  PdfTable,
+  PdfFooter,
+  type PdfTableColumn,
+} from "../pdf";
 
 interface Ctx {
   siteId: string | null;
@@ -149,7 +160,7 @@ const REPORTS: ReportDef[] = [
           date: m.date, doc: m.refNumber, type: MV_LABELS[m.type],
           produit: db.products.find((p) => p.id === m.productId)?.name ?? "",
           site: db.sites.find((s) => s.id === m.siteId)?.code ?? "",
-          entree: m.qty > 0 ? m.qty : "", sortie: m.qty < 0 ? m.qty : "",
+          entree: m.qty > 0 ? m.qty : "", sortie: m.qty < 0 ? Math.abs(m.qty) : "",
           valeur: m.totalCost.toFixed(2),
           user: db.users.find((u) => u.id === m.userId)?.name ?? "Système",
         })),
@@ -475,12 +486,12 @@ export function ReportsPage() {
   const tableCols = result.cols.map((c) => ({
     key: c.key,
     label: c.label,
-    align: ["qte", "cout", "valeur", "total", "montant", "ca", "consommation", "ca", "paye", "reste", "solde", "facture", "entree", "sortie", "cout", "valeur", "ticket", "part", "min", "reappro", "refs", "rupture", "nb", "couverts", "theorique", "compte", "ecart", "foodcost"].includes(c.key) ? ("right" as const) : ("left" as const),
+    align: ["qte", "cout", "valeur", "total", "montant", "ca", "consommation", "paye", "reste", "solde", "facture", "entree", "sortie", "ticket", "part", "min", "reappro", "refs", "rupture", "nb", "couverts", "theorique", "compte", "ecart", "foodcost"].includes(c.key) ? ("right" as const) : ("left" as const),
     render: (r: Record<string, string | number>) => {
       const v = r[c.key];
       return <span className="tnum">{typeof v === "number" ? fmtNum(v) : v}</span>;
     },
-  }));
+  })) as PdfTableColumn[];
 
   return (
     <div>
@@ -519,11 +530,23 @@ export function ReportsPage() {
                 <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-38 h-8.5 text-[12px]" />
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-38 h-8.5 text-[12px]" />
                 <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={exportCSV}>CSV</Button>
-                <Button variant="outline" size="sm" icon={<Printer size={13} />} onClick={() => window.print()}>PDF / Imprimer</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  icon={<Printer size={13} />} 
+                  onClick={() => {
+                    // تأكد بلي الـ PDF موجود قبل الطباعة
+                    setTimeout(() => {
+                      window.print();
+                    }, 100);
+                  }}
+                >
+                  PDF / Imprimer
+                </Button>
               </div>
             }
           >
-            <div className="flex items-center gap-4 border-b border-line pb-4 mb-4">
+            <div className="flex items-center gap-4 border-b border-line pb-4 mb-4 px-4 pt-4">
               <Logo size={64} />
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
@@ -531,54 +554,50 @@ export function ReportsPage() {
                 <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
               </div>
             </div>
-            <DataTable cols={tableCols} rows={result.rows} rowKey={(r) => result.rows.indexOf(r) + "-" + String(r[result.cols[0]?.key ?? ""] ?? "")} pageSize={12} dense
+            <DataTable 
+              cols={tableCols} 
+              rows={result.rows} 
+              rowKey={(r) => result.rows.indexOf(r) + "-" + String(r[result.cols[0]?.key ?? ""] ?? "")} 
+              pageSize={12} 
+              dense
               empty={<EmptyState title="Aucune donnée" sub="Aucun enregistrement sur ce périmètre et cette période." />}
             />
           </Card>
         </div>
       </div>
 
-      {/* zone imprimée (PDF) - HNA FIN KAN L'MOCHKIL */}
-      <div className="print-root hidden print:block">
-        <div className="mb-5 flex items-start justify-between border-b-2 border-pine-900 pb-4">
-          <div className="flex items-center gap-3">
-            {/* BADALNA LogoMark B Logo HNA BACH YBAN F PDF */}
-            <Logo size={50} />
-            <div>
-              <p className="font-display text-[19px] font-bold text-pine-900">{db.company.name}</p>
-              <p className="text-[11px] text-ink2">{db.company.legalName} · {db.company.address}, {db.company.city}</p>
-              <p className="text-[11px] text-ink2">ICE {db.company.ice} · IF {db.company.iff} · RC {db.company.rc}</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="font-display text-[17px] font-bold text-pine-900">{report.title}</p>
-            <p className="text-[11px] text-ink2">Périmètre : {siteId ? siteName(siteId) : "Tous les sites"}</p>
-            <p className="text-[11px] text-ink2">Période : {fmtDate(from)} → {fmtDate(to)}</p>
-            <p className="text-[11px] text-ink2">Généré le {fmtDateTime(new Date().toISOString())} par {user?.name}</p>
-          </div>
-        </div>
-        <table className="w-full border-collapse text-[11px]">
-          <thead>
-            <tr>
-              {result.cols.map((c) => (
-                <th key={c.key} className="border-b-2 border-pine-900 px-2 py-1.5 text-left font-bold uppercase tracking-wide text-pine-900">{c.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {result.rows.slice(0, 60).map((r, i) => (
-              <tr key={i} className={i % 2 ? "bg-paper" : ""}>
-                {result.cols.map((c) => (
-                  <td key={c.key} className="border-b border-line px-2 py-1.5">{typeof r[c.key] === "number" ? fmtNum(r[c.key] as number) : String(r[c.key] ?? "")}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="mt-4 text-[10px] text-mute">
-          {result.rows.length} ligne(s) · Montants en {cur} · FoodOps — données issues du moteur de stock transactionnel (page 1/1)
-        </p>
-      </div>
+      {/* ========================================== */}
+      {/* NOUVEAU SYSTÈME PDF PROFESSIONNEL (موجود برا الـ Card) */}
+      {/* ========================================== */}
+      <PdfLayout>
+        <PdfHeader 
+          company={db.company} 
+          title={report.title} 
+          subtitle={report.desc} 
+        />
+        
+        <PdfReportMeta 
+          items={[
+            { label: "Périmètre", value: siteId ? siteName(siteId) : "Tous les sites" },
+            { label: "Période", value: `${fmtDate(from)} → ${fmtDate(to)}` },
+            { label: "Généré par", value: user?.name ?? "Système" },
+            { label: "Date", value: fmtDate(new Date().toISOString()) },
+          ]} 
+        />
+
+        <PdfKpi 
+          items={[
+            { label: "Total lignes", value: fmtNum(result.rows.length) },
+          ]} 
+        />
+
+        <PdfTable 
+          columns={tableCols} 
+          rows={result.rows} // ✅ جميع البيانات ستظهر بدون تحديد
+        />
+
+        <PdfFooter companyName={db.company.name} />
+      </PdfLayout>
     </div>
   );
 }

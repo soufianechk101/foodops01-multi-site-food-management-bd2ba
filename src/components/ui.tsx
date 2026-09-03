@@ -9,6 +9,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   Check,
@@ -21,6 +22,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+
 import { cn } from "../lib/cn";
 import type { Product, Unit } from "../types";
 import { useApp } from "../state/AppContext";
@@ -207,6 +209,7 @@ export function useCountUp(target: number, duration = 650): number {
   const [val, setVal] = useState(target);
   const fromRef = useRef(target);
   const first = useRef(true);
+  
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -215,6 +218,7 @@ export function useCountUp(target: number, duration = 650): number {
     const from = fromRef.current;
     const start = performance.now();
     let raf = 0;
+    
     const tick = (t: number) => {
       const p = Math.min(1, (t - start) / duration);
       const eased = 1 - Math.pow(1 - p, 3);
@@ -222,9 +226,11 @@ export function useCountUp(target: number, duration = 650): number {
       if (p < 1) raf = requestAnimationFrame(tick);
       else fromRef.current = target;
     };
+    
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [target, duration]);
+  
   return val;
 }
 
@@ -251,6 +257,7 @@ export function Stat({
       : format === "pct"
         ? fmtNum(v, 1) + " %"
         : fmtNum(v, 0);
+        
   const iconTone: Record<Tone, string> = {
     ok: "bg-okbg text-ok",
     warn: "bg-warnbg text-warn",
@@ -260,6 +267,7 @@ export function Stat({
     copper: "bg-copper-100 text-copper-600",
     pine: "bg-pine-100 text-pine-700",
   };
+  
   return (
     <div className="group rounded-lg border border-line bg-card p-4 shadow-[0_1px_2px_rgba(16,46,36,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:border-line2 hover:shadow-[0_6px_18px_rgba(16,46,36,0.09)]">
       <div className="flex items-start justify-between gap-2">
@@ -285,98 +293,73 @@ export function Modal({
   sub, 
   children, 
   footer, 
-  width = "max-w-2xl",
-  className = ""
+  width = "max-w-3xl",
+  className
 }: {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title?: string;
   sub?: string;
-  children: ReactNode;
-  footer?: ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
   width?: string;
   className?: string;
 }) {
+  useEffect(() => {
+    if (open) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [open]);
+
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
-      <div className={`relative w-full ${width} my-8 mx-auto ${className}`}>
-        <div className="relative bg-paper rounded-lg shadow-xl max-h-[90vh] flex flex-col">
-          {/* Header */}
-          <div className="flex items-start justify-between p-6 border-b border-line shrink-0">
+  return createPortal(
+    <div className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 print:static print:z-auto print:p-0 ${className ?? ''}`}>
+      {/* Overlay - كيختفي فـ الطباعة */}
+      <div 
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity print:hidden" 
+        onClick={onClose} 
+      />
+      
+      {/* محتوى Modal */}
+      <div className={`relative z-10 w-full ${width} bg-white dark:bg-gray-900 rounded-xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 print:static print:z-auto print:shadow-none print:rounded-none print:max-h-none print:w-full print:bg-white`}>
+        
+        {/* Header */}
+        {(title || sub) && (
+          <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800 shrink-0 print:hidden">
             <div>
-              <h2 className="text-xl font-bold text-ink">{title}</h2>
-              {sub && <p className="text-sm text-mute mt-1">{sub}</p>}
+              {title && <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>}
+              {sub && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{sub}</p>}
             </div>
-            <button onClick={onClose} className="text-mute hover:text-ink">
+            <button 
+              onClick={onClose}
+              aria-label="Fermer"
+              className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors"
+            >
               <X size={20} />
             </button>
           </div>
-          
-          {/* Content - قابل للتمرير */}
-          <div className="flex-1 overflow-y-auto p-6">
-            {children}
-          </div>
-          
-          {/* Footer */}
-          {footer && (
-            <div className="flex items-center justify-end gap-2 p-6 border-t border-line shrink-0">
-              {footer}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+        )}
 
-export function Confirm({
-  open,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  confirmLabel = "Confirmer",
-  tone = "danger",
-}: {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: ReactNode;
-  confirmLabel?: string;
-  tone?: "danger" | "primary" | "copper";
-}) {
-  return (
-    <Modal open={open} onClose={onClose} title={title} width="max-w-md"
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose}>Annuler</Button>
-          <Button
-            variant={tone === "danger" ? "danger" : tone === "copper" ? "copper" : "primary"}
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-          >
-            {confirmLabel}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex gap-3">
-        <span
-          className={cn(
-            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-            tone === "danger" ? "bg-badbg text-bad" : "bg-copper-100 text-copper-600"
-          )}
-        >
-          <AlertTriangle size={18} />
-        </span>
-        <div className="text-[13.5px] leading-relaxed text-ink2">{message}</div>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 print:overflow-visible print:px-0 print:py-0">
+          {children}
+        </div>
+
+        {/* Footer */}
+        {footer && (
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 rounded-b-xl shrink-0 print:hidden">
+            {footer}
+          </div>
+        )}
       </div>
-    </Modal>
+    </div>,
+    document.body
   );
 }
 
@@ -446,6 +429,7 @@ export function SearchInput({
       />
       {value && (
         <button
+          type="button"
           onClick={() => onChange("")}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-mute hover:text-ink"
           title="Effacer"
@@ -473,6 +457,7 @@ export function Tabs({
       {tabs.map((t) => (
         <button
           key={t.key}
+          type="button"
           onClick={() => onChange(t.key)}
           className={cn(
             "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-all",
@@ -705,13 +690,16 @@ export function Gauge({
   const cx = size / 2;
   const cy = size / 2 + 8;
   const r = size / 2 - 14;
+  
   const arc = (from: number, to: number) => {
     const f = rad(from);
     const t = rad(to);
     return `M ${cx + r * Math.cos(f)} ${cy + r * Math.sin(f)} A ${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${cx + r * Math.cos(t)} ${cy + r * Math.sin(t)}`;
   };
+  
   const targetAngle = -90 + (Math.min(60, target) / 60) * 180;
   const over = value > target;
+  
   return (
     <svg width={size} height={size / 2 + 26} viewBox={`0 0 ${size} ${size / 2 + 26}`}>
       <path d={arc(-90, 90)} fill="none" stroke="var(--color-line)" strokeWidth="11" strokeLinecap="round" />
@@ -923,4 +911,46 @@ export function LineEditor({
 /* divers */
 export function CheckIcon() {
   return <Check size={14} />;
+}
+
+/* ================= confirmation dialog ================= */
+
+export function Confirm({
+  open,
+  onClose,
+  title,
+  message,
+  onConfirm,
+  confirmText = "Confirmer",
+  cancelText = "Annuler",
+  variant = "danger",
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: "danger" | "primary" | "copper";
+}) {
+  return (
+    <Modal open={open} onClose={onClose} title={title}>
+      <p className="text-[13.5px] text-ink2 leading-relaxed mb-6">{message}</p>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>
+          {cancelText}
+        </Button>
+        <Button 
+          variant={variant === "danger" ? "danger" : variant === "copper" ? "copper" : "primary"} 
+          onClick={() => {
+            onConfirm();
+            onClose();
+          }}
+        >
+          {confirmText}
+        </Button>
+      </div>
+    </Modal>
+  );
 }

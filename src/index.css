@@ -45,10 +45,13 @@
   --color-infobg: #e1eff5;
 }
 
-html,
-body,
-#root {
+/* ================= BASE ================= */
+html, body, #root {
+  margin: 0;
+  padding: 0;
   height: 100%;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -63,35 +66,48 @@ body {
   color: var(--color-pine-900);
 }
 
-/* ---------- textures ---------- */
-.ledger-bg {
-  background-image: radial-gradient(rgba(26, 38, 32, 0.055) 1px, transparent 1px);
-  background-size: 22px 22px;
-}
-.side-bg {
-  background:
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.022) 0 2px, transparent 2px 14px),
-    linear-gradient(168deg, #12362a 0%, #0d2b21 46%, #081d16 100%);
-}
-.print-paper {
-  background:
-    linear-gradient(180deg, rgba(16, 46, 36, 0.03), transparent 140px),
-    #fff;
+:focus-visible {
+  outline: 2px solid var(--color-copper-400);
+  outline-offset: 1px;
 }
 
 .tnum {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- scrollbars ---------- */
+/* ================= TEXTURES & UTILS ================= */
+.ledger-bg {
+  background-image: radial-gradient(rgba(235, 223, 223, 0.034) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.side-bg {
+  background:
+    repeating-linear-gradient(135deg, rgba(19, 17, 17, 0.192) 0 2px, transparent 2px 14px),
+    linear-gradient(168deg, #12362a 0%, #0d2b21 46%, #081d16 100%);
+}
+
+.print-paper {
+  background:
+    linear-gradient(180deg, rgba(16, 46, 36, 0.03), transparent 140px),
+    #fff;
+}
+
+.print-only {
+  display: none;
+}
+
+/* ================= SCROLLBARS ================= */
 * {
   scrollbar-width: thin;
   scrollbar-color: #b3c0b2 transparent;
 }
+
 *::-webkit-scrollbar {
   width: 9px;
   height: 9px;
 }
+
 *::-webkit-scrollbar-thumb {
   background: #b3c0b2;
   border-radius: 8px;
@@ -99,58 +115,33 @@ body {
   background-clip: content-box;
 }
 
-/* ---------- motion ---------- */
+/* ================= ANIMATIONS ================= */
 @keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 @keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateX(24px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
+  from { opacity: 0; transform: translateX(24px) scale(0.97); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 @keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes grow-y {
-  from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
-  }
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
 }
 @keyframes shake-x {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-5px); }
   75% { transform: translateX(5px); }
 }
+
 .anim-fade-up { animation: fade-up 0.38s cubic-bezier(0.22, 0.8, 0.36, 1) both; }
 .anim-toast { animation: toast-in 0.3s cubic-bezier(0.22, 0.8, 0.36, 1) both; }
 .anim-pop { animation: pop-in 0.28s cubic-bezier(0.22, 0.8, 0.36, 1) both; }
@@ -175,92 +166,140 @@ body {
   }
 }
 
-/* ---------- forms ---------- */
+/* ================= FORMS ================= */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
 input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-copper-400);
-  outline-offset: 1px;
+/* ================= MODAL & OVERLAY FIXES (منظم ونظيف) ================= */
+/* منع الـ scroll فـ الصفحة الأصلية عند فتح Modal */
+body.modal-open {
+  overflow: hidden !important;
+  height: 100vh !important;
+  position: fixed !important;
+  width: 100% !important;
 }
 
-/* ---------- print ---------- */
-@media print {
-  body * {
-    visibility: hidden;
-  }
-  .print-root,
-  .print-root * {
-    visibility: visible;
-  }
-  .print-root {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    padding: 24px;
-    background: #fff;
-  }
-  .no-print {
-    display: none !important;
-  }
-}
-/* Print styles */
-@media print {
-  .no-print {
-    display: none !important;
-  }
-  
-  .print-only {
-    display: block !important;
-  }
-  
-  .print-root {
-    display: block !important;
-    background: white;
-    padding: 2rem;
-  }
-  
-  body {
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
-  
-  .modal-overlay {
-    display: none !important;
-  }
-  
-  .modal-content {
-    box-shadow: none !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-  }
-}
-
-.print-only {
-  display: none;
-}
-/* تحسين الـ Modal باش يبان فـ الوسط ويخدم مزيان */
+/* Overlay كامل الشاشة */
 .modal-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+  background-color: rgba(243, 243, 243, 0.5) !important;
 }
 
-.modal-content {
-  @apply relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-lg bg-paper shadow-xl;
+/* Modal Container */
+.modal-container, .modal-content {
+  position: relative !important;
+  z-index: 10000 !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
 }
 
 /* تحسين الجدول باش مايخرجش من الـ Modal */
 .table-container {
-  @apply overflow-x-auto max-h-[400px] overflow-y-auto;
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 /* تحسين الـ LineEditor */
 .line-editor-container {
-  @apply max-h-[300px] overflow-y-auto;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ================= PRINT STYLES - الحل النهائي ================= */
+
+/* إخفاء عنصر الطباعة فـ الوضع العادي */
+.print-only {
+  display: none !important;
+}
+
+@media print {
+  /* 1. إلغاء كل الـ positioning ديال Modal */
+  body.modal-open {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: auto !important;
+  }
+
+  /* 2. إخفاء كلشي */
+  body * {
+    visibility: hidden !important;
+  }
+  
+  /* 3. إظهار غير الـ print-only و ولاده */
+  .print-only,
+  .print-only *,
+  .print-root,
+  .print-root * {
+    visibility: visible !important;
+  }
+  
+  /* 4. إخفاء صريح للأزرار و Modal overlay */
+  .no-print,
+  .modal-overlay,
+  button,
+  input,
+  select,
+  textarea {
+    display: none !important;
+  }
+  
+  /* 5. تنسيق صفحة الطباعة */
+  .print-only, .print-root {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    background: white !important;
+    color: black !important;
+    font-family: "Public Sans", sans-serif !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* 6. تنسيق الجداول */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  
+  th, td {
+    border: 1px solid #ccc !important;
+    padding: 8px !important;
+  }
+
+  th {
+    background-color: #f3f4f6 !important;
+    font-weight: bold !important;
+  }
+
+  /* 7. ضمان طباعة الألوان */
+  body {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* 8. إلغاء الـ fixed positioning ديال Modal */
+  .fixed, [class*="fixed"] {
+    position: static !important;
+  }
+
+  /* 9. إلغاء الـ z-index */
+  [class*="z-"] {
+    z-index: auto !important;
+  }
 }

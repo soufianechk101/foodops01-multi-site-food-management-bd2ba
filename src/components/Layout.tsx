@@ -469,7 +469,7 @@ export function Layout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden bg-paper">
       <div className="hidden lg:block">{sidebar}</div>
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -506,7 +506,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="ledger-bg flex-1 overflow-y-auto">
+        <main className="min-h-0 flex-1 overflow-y-auto bg-paper">
           <div key={route} className="anim-fade-up mx-auto w-full max-w-[1380px] px-4 py-5 lg:px-6">
             {children}
           </div>
