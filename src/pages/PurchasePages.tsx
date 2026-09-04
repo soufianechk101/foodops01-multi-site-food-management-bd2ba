@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { Logo } from "../components/Logo";
-import { Eye, FileText, Pencil, Plus, Truck, Wallet, X, Printer, Clock } from "lucide-react";
+import { Eye, FileText, Pencil, Plus, Truck, Wallet, X, Printer } from "lucide-react";
 import { useApp, useUserId } from "../state/AppContext";
+import { usePdfPrint } from '../pdf/PdfPrintManager';
+import { PurchaseOrderPdf, type PurchaseOrderPdfModel } from '../pdf/templates/PurchaseOrderPdf';
+import { ReceptionPdf, type ReceptionPdfModel } from '../pdf/templates/ReceptionPdf';
 import {
   Badge,
   Button,
@@ -38,7 +41,6 @@ import {
 import type { Invoice, Payment, PayMethod, PurchaseOrder, Reception } from "../types";
 import {
   fmtDate,
-  fmtDateTime,
   fmtMoney,
   fmtNum,
   nowISO,
@@ -54,6 +56,8 @@ export function PurchaseOrdersPage() {
   const { db, siteId, allowedSites, act, can, nav, siteName } = useApp();
   const userId = useUserId();
   const cur = db.company.currency;
+  const { print } = usePdfPrint();
+
   const [editing, setEditing] = useState<PurchaseOrder | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [detail, setDetail] = useState<PurchaseOrder | null>(null);
@@ -68,6 +72,32 @@ export function PurchaseOrdersPage() {
   const [editId, setEditId] = useState<string | null>(null);
 
   const poTotal = (po: PurchaseOrder) => po.lines.reduce((s, l) => s + l.qty * l.unitCost, 0);
+
+  const handlePrintPO = (po: PurchaseOrder) => {
+    const model: PurchaseOrderPdfModel = {
+      number: po.number,
+      date: po.date,
+      supplierName: db.suppliers.find(s => s.id === po.supplierId)?.name || '',
+      siteName: siteName(po.siteId),
+      status: po.status,
+      expectedDate: po.expectedDate,
+      notes: po.notes,
+      company: db.company,
+      totalHT: po.lines.reduce((sum, l) => sum + l.qty * l.unitCost, 0),
+      lines: po.lines.map(l => {
+        const p = db.products.find(x => x.id === l.productId);
+        return {
+          code: p?.code || '',
+          name: p?.name || 'Produit inconnu',
+          unit: db.units.find(u => u.id === p?.unitId)?.code || '',
+          qty: l.qty,
+          unitCost: l.unitCost,
+          total: l.qty * l.unitCost
+        };
+      })
+    };
+    print(<PurchaseOrderPdf model={model} />);
+  };
 
   const rows = useMemo(
     () =>
@@ -192,7 +222,6 @@ export function PurchaseOrdersPage() {
         empty={<EmptyState title="Aucun bon de commande" sub="Créez votre premier bon de commande fournisseur pour initier le circuit d'achat." action={can("purchases.create") ? <Button icon={<Plus size={15} />} onClick={openNew}>Créer un bon</Button> : undefined} />}
       />
 
-      {/* Modal Nouveau/Modifier Bon */}
       <Modal open={showNew} onClose={() => setShowNew(false)} title={editId ? `Modifier ${editing?.number}` : "Nouveau bon de commande"} sub="Enregistré en brouillon, sans impact sur le stock." width="max-w-4xl">
         <div className="space-y-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -228,195 +257,71 @@ export function PurchaseOrdersPage() {
         </div>
       </Modal>
 
-      {/* Modal Détail Bon de Commande - مصلح */}
-     <Modal open={!!detail} onClose={() => setDetail(null)} title="Détail du Bon de Commande" sub={detail?.number} width="max-w-4xl">
-  {detail && (
-    <div className="max-h-[85vh] overflow-y-auto">
-      
-      {/* ========================================== */}
-      {/* 1. العرض العادي (يختفي عند الطباعة) */}
-      {/* ========================================== */}
-      <div className="no-print space-y-4 p-6">
-        <div className="flex items-start gap-4 border-b border-line pb-4">
-          <Logo size={48} />
-          <div className="flex-1">
-            <h2 className="text-lg font-bold text-ink">{db.company.name}</h2>
-            <p className="text-xs text-mute">{db.company.address} | ICE: {db.company.ice}</p>
-          </div>
-          <Button variant="outline" size="sm" icon={<Printer size={14} />} onClick={() => window.print()}>
-            Imprimer / PDF
-          </Button>
-        </div>
+      <Modal open={!!detail} onClose={() => setDetail(null)} title="Détail du Bon de Commande" sub={detail?.number || ""} width="max-w-4xl">
+        {detail && (
+          <div className="max-h-[85vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex items-start gap-4 border-b border-line pb-4">
+              <Logo size={48} />
+              <div className="flex-1">
+                <h2 className="text-lg font-bold text-ink">{db.company.name}</h2>
+                <p className="text-xs text-mute">{db.company.address} | ICE: {db.company.ice}</p>
+              </div>
+              <Button variant="outline" size="sm" icon={<Printer size={14} />} onClick={() => handlePrintPO(detail)}>
+                Imprimer / PDF
+              </Button>
+            </div>
 
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div className="bg-paper p-3 rounded border border-line">
-            <p className="text-[10px] font-bold uppercase text-mute mb-1">Fournisseur</p>
-            <p className="font-bold text-ink">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
-          </div>
-          <div className="bg-paper p-3 rounded border border-line">
-            <p className="text-[10px] font-bold uppercase text-mute mb-1">Site & Date</p>
-            <p className="font-bold text-ink">{siteName(detail.siteId)} · {fmtDate(detail.date)}</p>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto rounded border border-line">
-          <table className="w-full text-[12.5px]">
-            <thead className="bg-paper/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
-              <tr>
-                <th className="px-3 py-2">Produit</th>
-                <th className="px-3 py-2 text-right">Qté</th>
-                <th className="px-3 py-2 text-right">Reçu</th>
-                <th className="px-3 py-2 text-right">PU HT</th>
-                <th className="px-3 py-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detail.lines.map((l, i) => {
-                const p = db.products.find((x) => x.id === l.productId);
-                return (
-                  <tr key={i} className="border-b border-line/70 last:border-0">
-                    <td className="px-3 py-2 font-semibold">{p?.name}</td>
-                    <td className="px-3 py-2 text-right tnum">{fmtNum(l.qty)}</td>
-                    <td className="px-3 py-2 text-right tnum text-pine-700 font-bold">{fmtNum(l.receivedQty)}</td>
-                    <td className="px-3 py-2 text-right tnum text-ink2">{fmtMoney(l.unitCost, cur)}</td>
-                    <td className="px-3 py-2 text-right tnum font-bold">{fmtMoney(l.qty * l.unitCost, cur)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <p className="text-right text-[13px] font-semibold text-ink2 border-t border-line pt-3">
-          Total HT : <span className="tnum font-display text-[18px] font-bold text-ink">{fmtMoney(poTotal(detail), cur)}</span>
-        </p>
-
-        <div className="flex justify-end pt-2">
-          <Button variant="outline" onClick={() => setDetail(null)}>Fermer</Button>
-        </div>
-      </div>
-
-      {/* ========================================== */}
-      {/* 2. عرض الطباعة الاحترافي */}
-      {/* ========================================== */}
-      <div className="print-only">
-        <div className="p-8">
-          
-          {/* Header */}
-          <div className="flex justify-between items-start mb-8 pb-6 border-b-2 border-pine-900">
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-pine-900 mb-3">{db.company.name}</h1>
-              <div className="space-y-1 text-sm text-gray-600">
-                <p>{db.company.address}</p>
-                <p>{db.company.city} - Maroc</p>
-                <p className="text-xs mt-2">
-                  ICE: {db.company.ice} | IF: {db.company.iff} | RC: {db.company.rc}
-                </p>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="bg-paper p-3 rounded border border-line">
+                <p className="text-[10px] font-bold uppercase text-mute mb-1">Fournisseur</p>
+                <p className="font-bold text-ink">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
+              </div>
+              <div className="bg-paper p-3 rounded border border-line">
+                <p className="text-[10px] font-bold uppercase text-mute mb-1">Site & Date</p>
+                <p className="font-bold text-ink">{siteName(detail.siteId)} · {fmtDate(detail.date)}</p>
               </div>
             </div>
-            <div className="text-right">
-              <h2 className="text-2xl font-bold text-pine-900 uppercase tracking-wide mb-2">Bon de Commande</h2>
-              <p className="font-mono text-lg font-bold text-pine-700">{detail.number}</p>
-              <p className="text-sm text-gray-600 mt-1">Date: {fmtDate(detail.date)}</p>
-              {detail.expectedDate && (
-                <p className="text-sm text-gray-600">Livraison prévue: {fmtDate(detail.expectedDate)}</p>
-              )}
-            </div>
-          </div>
 
-          {/* Fournisseur */}
-          <div className="mb-8 p-5 bg-gray-50 border border-gray-200 rounded-lg">
-            <h3 className="text-xs font-bold uppercase text-gray-500 mb-2 tracking-wide">Fournisseur</h3>
-            <p className="font-bold text-lg text-gray-900">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
-            {(() => {
-              const sup = db.suppliers.find((s) => s.id === detail.supplierId);
-              return sup && (
-                <div className="text-sm text-gray-600 mt-1 space-y-0.5">
-                  {sup.address && <p>{sup.address}</p>}
-                  {sup.city && <p>{sup.city}</p>}
-                  {sup.phone && <p>Tél: {sup.phone}</p>}
-                  {sup.email && <p>Email: {sup.email}</p>}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* جدول المنتجات */}
-          <table className="w-full mb-8 border-2 border-gray-300">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-3 text-left font-bold text-sm border-b border-gray-300">Produit</th>
-                <th className="px-4 py-3 text-center font-bold text-sm border-b border-gray-300">Qté</th>
-                <th className="px-4 py-3 text-right font-bold text-sm border-b border-gray-300">PU HT</th>
-                <th className="px-4 py-3 text-right font-bold text-sm border-b border-gray-300">Total HT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detail.lines.map((l, i) => {
-                const p = db.products.find((x) => x.id === l.productId);
-                const total = l.qty * l.unitCost;
-                return (
-                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-4 py-3 font-semibold text-sm border-b border-gray-200">
-                      {p?.name || 'Produit inconnu'}
-                      {p?.code && <span className="text-xs text-gray-500 ml-2">({p.code})</span>}
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono text-sm border-b border-gray-200">{fmtNum(l.qty)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-gray-600 border-b border-gray-200">{fmtMoney(l.unitCost, cur)}</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-sm border-b border-gray-200">{fmtMoney(total, cur)}</td>
+            <div className="overflow-x-auto rounded border border-line">
+              <table className="w-full text-[12.5px]">
+                <thead className="bg-paper/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
+                  <tr>
+                    <th className="px-3 py-2">Produit</th>
+                    <th className="px-3 py-2 text-right">Qté</th>
+                    <th className="px-3 py-2 text-right">Reçu</th>
+                    <th className="px-3 py-2 text-right">PU HT</th>
+                    <th className="px-3 py-2 text-right">Total</th>
                   </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-100">
-                <td colSpan={3} className="px-4 py-3 text-right font-bold text-base">Total HT:</td>
-                <td className="px-4 py-3 text-right font-bold text-xl text-pine-900">{fmtMoney(poTotal(detail), cur)}</td>
-              </tr>
-            </tfoot>
-          </table>
-
-          {/* Notes */}
-          {detail.notes && (
-            <div className="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h3 className="text-xs font-bold uppercase text-yellow-700 mb-2">Notes / Réserves</h3>
-              <p className="text-sm text-gray-700">{detail.notes}</p>
+                </thead>
+                <tbody>
+                  {detail.lines.map((l, i) => {
+                    const p = db.products.find((x) => x.id === l.productId);
+                    return (
+                      <tr key={i} className="border-b border-line/70 last:border-0">
+                        <td className="px-3 py-2 font-semibold">{p?.name}</td>
+                        <td className="px-3 py-2 text-right tnum">{fmtNum(l.qty)}</td>
+                        <td className="px-3 py-2 text-right tnum text-pine-700 font-bold">{fmtNum(l.receivedQty)}</td>
+                        <td className="px-3 py-2 text-right tnum text-ink2">{fmtMoney(l.unitCost, cur)}</td>
+                        <td className="px-3 py-2 text-right tnum font-bold">{fmtMoney(l.qty * l.unitCost, cur)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          )}
 
-          {/* توقيعات */}
-          <div className="mt-16 pt-8 border-t-2 border-gray-300">
-            <p className="text-sm text-gray-600 mb-8 italic">
-              Arrêté le présent bon de commande à la somme de : <span className="font-bold text-gray-900">{fmtMoney(poTotal(detail), cur)} HT</span>
+            <p className="text-right text-[13px] font-semibold text-ink2 border-t border-line pt-3">
+              Total HT : <span className="tnum font-display text-[18px] font-bold text-ink">{fmtMoney(poTotal(detail), cur)}</span>
             </p>
-            <div className="grid grid-cols-2 gap-16">
-              <div>
-                <p className="font-bold text-sm mb-1 pb-2 border-b border-gray-400">Cachet et Signature du Fournisseur</p>
-                <p className="text-xs text-gray-500">(Lu et approuvé)</p>
-                <div className="h-20 mt-4"></div>
-              </div>
-              <div>
-                <p className="font-bold text-sm mb-1 pb-2 border-b border-gray-400">Service des Achats</p>
-                <p className="text-xs text-gray-500">Visa et validation</p>
-                <div className="h-20 mt-4"></div>
-              </div>
+
+            <div className="flex justify-end pt-2">
+              <Button variant="outline" onClick={() => setDetail(null)}>Fermer</Button>
             </div>
           </div>
+        )}
+      </Modal>
 
-          {/* Footer */}
-          <div className="mt-12 pt-6 border-t border-gray-200 text-center text-xs text-gray-500">
-            <p>Document généré le {new Date().toLocaleDateString('fr-FR')} via FoodOps - Système de Gestion des Stocks</p>
-          </div>
-
-        </div>
-      </div>
-
-    </div>
-  )}
-</Modal>
-
-  
-<Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} title={confirm?.title ?? ""} message={confirm?.msg ?? ""} confirmText="Confirmer" />
+      <Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} title={confirm?.title ?? ""} message={confirm?.msg ?? ""} confirmText="Confirmer" />
     </div>
   );
 }
@@ -428,6 +333,8 @@ export function ReceptionsPage() {
   const { db, siteId, allowedSites, act, can, siteName } = useApp();
   const userId = useUserId();
   const cur = db.company.currency;
+  const { print } = usePdfPrint();
+
   const [showNew, setShowNew] = useState(false);
   const [detail, setDetail] = useState<Reception | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; msg: string; fn: () => void } | null>(null);
@@ -440,6 +347,31 @@ export function ReceptionsPage() {
   const [lines, setLines] = useState<EditLine[]>([]);
 
   const recTotal = (r: Reception) => r.lines.reduce((s, l) => s + l.receivedQty * l.unitCost, 0);
+
+  const handlePrintReception = (rec: Reception) => {
+    const model: ReceptionPdfModel = {
+      number: rec.number,
+      date: rec.date,
+      supplierName: db.suppliers.find(s => s.id === rec.supplierId)?.name || '',
+      siteName: siteName(rec.siteId),
+      poNumber: rec.poId ? db.purchaseOrders.find(p => p.id === rec.poId)?.number : undefined,
+      company: db.company,
+      totalHT: rec.lines.reduce((sum, l) => sum + l.receivedQty * l.unitCost, 0),
+      lines: rec.lines.map(l => {
+        const p = db.products.find(x => x.id === l.productId);
+        return {
+          code: p?.code || '',
+          name: p?.name || 'Article inconnu',
+          unit: db.units.find(u => u.id === p?.unitId)?.code || '',
+          ordered: l.orderedQty || 0,
+          received: l.receivedQty,
+          unitCost: l.unitCost,
+          total: l.receivedQty * l.unitCost
+        };
+      })
+    };
+    print(<ReceptionPdf model={model} />);
+  };
 
   const rows = useMemo(
     () =>
@@ -524,7 +456,6 @@ export function ReceptionsPage() {
         empty={<EmptyState icon={<Truck size={24} />} title="Aucune réception" sub="Réceptionnez une livraison directe ou générez une réception depuis un bon de commande approuvé." action={can("receptions.create") ? <Button icon={<Plus size={15} />} onClick={openNew}>Créer une réception</Button> : undefined} />}
       />
 
-      {/* Modal Nouvelle Réception */}
       <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle réception" sub="Livraison directe — brouillon sans impact sur le stock." width="max-w-4xl">
         <div className="space-y-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -565,168 +496,86 @@ export function ReceptionsPage() {
         </div>
       </Modal>
 
-      {/* Modal Détail Réception - مصلح */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-4xl">
+      {/* ✅ هاد هو التصحيح: استعملنا detail ? ... : "" باش نتأكدو بلي detail ماشي null قبل ما نقراو منها */}
+      <Modal 
+        open={!!detail} 
+        onClose={() => setDetail(null)} 
+        title={detail ? `Réception ${detail.number}` : ""} 
+        sub={detail ? `${siteName(detail.siteId)} · ${fmtDate(detail.date)}` : ""} 
+        width="max-w-4xl"
+      >
         {detail && (
-          <div className="max-h-[calc(90vh-100px)] overflow-y-auto pr-2">
-            <div className="no-print flex items-start gap-4 border-b border-line pb-4 mb-4">
-              <Logo size={64} />
+          <div className="max-h-[85vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex items-start gap-4 border-b border-line pb-4">
+              <Logo size={48} />
               <div className="flex-1">
-                <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
-                <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
-                <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
+                <h2 className="text-lg font-bold text-ink">{db.company.name}</h2>
+                <p className="text-xs text-mute">{db.company.address} | ICE: {db.company.ice}</p>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" icon={<Printer size={13} />} onClick={() => window.print()}>
-                  PDF / Imprimer
-                </Button>
+              <Button variant="outline" size="sm" icon={<Printer size={14} />} onClick={() => handlePrintReception(detail)}>
+                Imprimer / PDF
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="bg-paper p-3 rounded border border-line">
+                <p className="text-[10px] font-bold uppercase text-mute mb-1">Fournisseur</p>
+                <p className="font-bold text-ink">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
+              </div>
+              <div className="bg-paper p-3 rounded border border-line">
+                <p className="text-[10px] font-bold uppercase text-mute mb-1">Site & Date</p>
+                <p className="font-bold text-ink">{siteName(detail.siteId)} · {fmtDate(detail.date)}</p>
               </div>
             </div>
 
-            {/* Header الطباعة - مصلح: حذفت hidden */}
-            <div className="print-only mb-6">
-              <div className="flex items-start justify-between border-b-2 border-pine-900 pb-4">
-                <div className="flex items-center gap-3">
-                  <Logo size={60} />
-                  <div>
-                    <h1 className="text-2xl font-bold text-pine-900">{db.company.name}</h1>
-                    <p className="text-[11px] text-ink2">{db.company.legalName}</p>
-                    <p className="text-[11px] text-ink2">ICE: {db.company.ice} | IF: {db.company.iff} | RC: {db.company.rc}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <h2 className="text-xl font-bold text-pine-900">BON DE RÉCEPTION</h2>
-                  <p className="font-mono text-[14px] font-bold text-pine-700">{detail.number}</p>
-                  <p className="text-[11px] text-ink2">{fmtDate(detail.date)}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-4 grid grid-cols-2 gap-4">
-              <div className="rounded-lg border border-line bg-paper p-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Fournisseur</p>
-                <p className="font-bold text-ink text-sm">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
-              </div>
-              <div className="rounded-lg border border-line bg-paper p-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Site de réception</p>
-                <p className="font-bold text-ink text-sm">{siteName(detail.siteId)}</p>
-              </div>
-            </div>
-
-            <div className="mb-4 flex flex-wrap gap-3 text-xs">
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-ink2">Réf. BL:</span>
-                <span className="font-mono font-bold text-ink">{detail.invoiceRef || "—"}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-ink2">Statut:</span>
-                <StatusBadge status={detail.status} />
-              </div>
-              {detail.poId && (
-                <div className="flex items-center gap-1">
-                  <span className="font-semibold text-ink2">BC:</span>
-                  <span className="font-mono font-bold text-pine-700">{db.purchaseOrders.find((p) => p.id === detail.poId)?.number}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="overflow-hidden rounded-lg border border-line">
-              <table className="w-full text-[12px]">
-                <thead className="bg-pine-900 text-pine-50">
+            <div className="overflow-x-auto rounded border border-line">
+              <table className="w-full text-[12.5px]">
+                <thead className="bg-paper/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
                   <tr>
-                    <th className="px-3 py-2 text-left font-bold uppercase tracking-[0.1em] text-[10px]">Produit</th>
-                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">Reçu</th>
-                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">PU HT</th>
-                    <th className="px-3 py-2 text-left font-bold uppercase tracking-[0.1em] text-[10px]">Lot / DLC</th>
-                    <th className="px-3 py-2 text-right font-bold uppercase tracking-[0.1em] text-[10px]">Total</th>
+                    <th className="px-3 py-2">Produit</th>
+                    <th className="px-3 py-2 text-right">Commandé</th>
+                    <th className="px-3 py-2 text-right">Reçu</th>
+                    <th className="px-3 py-2 text-right">PU HT</th>
+                    <th className="px-3 py-2 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detail.lines.map((l, i) => {
                     const p = db.products.find((x) => x.id === l.productId);
-                    const isExpired = l.expiry && new Date(l.expiry) < new Date();
                     return (
                       <tr key={i} className="border-b border-line/70 last:border-0">
-                        <td className="px-3 py-2 font-semibold text-ink text-xs">{p?.name}</td>
-                        <td className="px-3 py-2 text-right">
-                          <span className="tnum font-bold text-pine-700 text-xs">{fmtNum(l.receivedQty)}</span>
-                        </td>
-                        <td className="px-3 py-2 text-right tnum text-ink2 text-xs">{fmtMoney(l.unitCost, cur)}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-col gap-0.5">
-                            {l.lot && <span className="text-[9px] font-mono text-ink2">{l.lot}</span>}
-                            {l.expiry && (
-                              <span className={`text-[9px] font-semibold ${isExpired ? "text-bad font-bold" : "text-mute"}`}>
-                                {fmtDate(l.expiry)}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-right tnum font-bold text-ink text-xs">{fmtMoney(l.receivedQty * l.unitCost, cur)}</td>
+                        <td className="px-3 py-2 font-semibold">{p?.name}</td>
+                        <td className="px-3 py-2 text-right tnum">{fmtNum(l.orderedQty ?? 0)}</td>
+                        <td className="px-3 py-2 text-right tnum text-pine-700 font-bold">{fmtNum(l.receivedQty)}</td>
+                        <td className="px-3 py-2 text-right tnum text-ink2">{fmtMoney(l.unitCost, cur)}</td>
+                        <td className="px-3 py-2 text-right tnum font-bold">{fmtMoney(l.receivedQty * l.unitCost, cur)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
-                <tfoot className="bg-paper">
-                  <tr>
-                    <td colSpan={4} className="px-3 py-2 text-right font-bold text-ink2 text-xs">Total HT :</td>
-                    <td className="px-3 py-2 text-right tnum font-display text-sm font-bold text-pine-900">
-                      {fmtMoney(recTotal(detail), cur)}
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
 
             {detail.notes && (
-              <div className="mt-4 rounded-lg border border-line bg-paper p-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Notes</p>
+              <div className="rounded border border-line bg-paper p-3">
+                <p className="text-[10px] font-bold uppercase text-mute mb-1">Notes</p>
                 <p className="text-xs text-ink2">{detail.notes}</p>
               </div>
             )}
 
-            {/* توقيعات الطباعة - مصلح: حذفت hidden */}
-            <div className="print-only mt-8 pt-4 border-t border-line">
-              <div className="grid grid-cols-3 gap-8 text-[11px] text-ink2">
-                <div>
-                  <p className="font-bold text-pine-900 mb-2">Réceptionné par:</p>
-                  <div className="h-12 border-b border-line"></div>
-                  <p className="mt-1">{db.users.find((u) => u.id === detail.userId)?.name}</p>
-                </div>
-                <div>
-                  <p className="font-bold text-pine-900 mb-2">Validé par:</p>
-                  <div className="h-12 border-b border-line"></div>
-                  <p className="mt-1">Responsable stock</p>
-                </div>
-                <div>
-                  <p className="font-bold text-pine-900 mb-2">Fournisseur:</p>
-                  <div className="h-12 border-b border-line"></div>
-                  <p className="mt-1">Signature & Cachet</p>
-                </div>
-              </div>
-            </div>
+            <p className="text-right text-[13px] font-semibold text-ink2 border-t border-line pt-3">
+              Total HT : <span className="tnum font-display text-[18px] font-bold text-ink">{fmtMoney(recTotal(detail), cur)}</span>
+            </p>
 
-            <div className="no-print mt-4 flex justify-end gap-2 pt-4 border-t border-line">
-              {detail.status === "brouillon" && can("receptions.validate") && (
-                <Button 
-                  onClick={() => setConfirm({ 
-                    title: "Valider la réception ?", 
-                    msg: `La réception ${detail.number} augmentera le stock de ${siteName(detail.siteId)}.`, 
-                    fn: () => act((d) => validateReception(d, detail.id, userId), `Réception ${detail.number} validée — stock augmenté.`) 
-                  })}
-                >
-                  Valider
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => setDetail(null)}>
-                Fermer
-              </Button>
+            <div className="flex justify-between items-center pt-2">
+              <StatusBadge status={detail.status} />
+              <Button variant="outline" onClick={() => setDetail(null)}>Fermer</Button>
             </div>
           </div>
         )}
       </Modal>
 
-<Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} title={confirm?.title ?? ""} message={confirm?.msg ?? ""} confirmText="Confirmer" />
+      <Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} title={confirm?.title ?? ""} message={confirm?.msg ?? ""} confirmText="Confirmer" />
     </div>
   );
 }
@@ -860,7 +709,6 @@ export function InvoicesPage() {
         empty={<EmptyState icon={<FileText size={24} />} title="Aucune facture" sub="Enregistrez les factures de vos fournisseurs pour suivre le crédit et les échéances." />}
       />
 
-      {/* Modal Nouvelle Facture */}
       <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle facture fournisseur" width="max-w-3xl">
         <div className="space-y-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -922,51 +770,26 @@ export function InvoicesPage() {
         </div>
       </Modal>
 
-      {/* Modal Détail Facture - مصلح */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="" sub="" width="max-w-3xl">
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Facture ${detail?.number}`} sub="" width="max-w-3xl">
         {detail && (
-          <div className="max-h-[calc(90vh-100px)] overflow-y-auto pr-2">
-            <div className="no-print flex items-start gap-4 border-b border-line pb-4 mb-4">
-              <Logo size={64} />
+          <div className="max-h-[calc(90vh-100px)] overflow-y-auto pr-2 space-y-4">
+            <div className="flex items-start gap-4 border-b border-line pb-4">
+              <Logo size={48} />
               <div className="flex-1">
-                <h2 className="text-xl font-bold text-ink">{db.company.name}</h2>
-                <p className="text-sm text-mute">{db.company.address}, {db.company.city}</p>
-                <p className="text-xs text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" icon={<Printer size={13} />} onClick={() => window.print()}>
-                  PDF / Imprimer
-                </Button>
+                <h2 className="text-lg font-bold text-ink">{db.company.name}</h2>
+                <p className="text-xs text-mute">{db.company.address}, {db.company.city}</p>
+                <p className="text-[10px] text-mute mt-1">ICE: {db.company.ice} | RC: {db.company.rc}</p>
               </div>
             </div>
 
-            {/* Header الطباعة - مصلح: حذفت hidden */}
-            <div className="print-only mb-6">
-              <div className="flex items-start justify-between border-b-2 border-pine-900 pb-4">
-                <div className="flex items-center gap-3">
-                  <Logo size={60} />
-                  <div>
-                    <h1 className="text-2xl font-bold text-pine-900">{db.company.name}</h1>
-                    <p className="text-[11px] text-ink2">{db.company.legalName}</p>
-                    <p className="text-[11px] text-ink2">ICE: {db.company.ice} | IF: {db.company.iff} | RC: {db.company.rc}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <h2 className="text-xl font-bold text-pine-900">FACTURE FOURNISSEUR</h2>
-                  <p className="font-mono text-[14px] font-bold text-pine-700">{detail.number}</p>
-                  <p className="text-[11px] text-ink2">{fmtDate(detail.date)}</p>
-                </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="bg-paper p-3 rounded border border-line">
+                <p className="text-[10px] font-bold uppercase text-mute mb-1">Fournisseur</p>
+                <p className="font-bold text-ink">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
               </div>
-            </div>
-
-            <div className="mb-4 grid grid-cols-2 gap-4">
-              <div className="rounded-lg border border-line bg-paper p-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Fournisseur</p>
-                <p className="font-bold text-ink text-sm">{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</p>
-              </div>
-              <div className="rounded-lg border border-line bg-paper p-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-mute mb-1">Site concerné</p>
-                <p className="font-bold text-ink text-sm">{siteName(detail.siteId)}</p>
+              <div className="bg-paper p-3 rounded border border-line">
+                <p className="text-[10px] font-bold uppercase text-mute mb-1">Site concerné</p>
+                <p className="font-bold text-ink">{siteName(detail.siteId)}</p>
               </div>
             </div>
 
@@ -1026,7 +849,7 @@ export function InvoicesPage() {
               </table>
             </div>
 
-            <div className="no-print mt-4 flex justify-end gap-2 pt-4 border-t border-line">
+            <div className="flex justify-between items-center pt-2">
               {invoiceStatus(db, detail) !== "payee" && can("purchases.create") && (
                 <Button variant="outline" icon={<Wallet size={13} />} onClick={() => { setDetail(null); setPayFor(detail); }}>
                   Régler cette facture

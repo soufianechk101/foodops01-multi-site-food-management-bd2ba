@@ -1,35 +1,27 @@
 /* src/pdf/PdfStyles.css */
 
-@page {
-  size: A4 portrait;
-  margin: 15mm;
-}
-
-@page landscape {
-  size: A4 landscape;
-  margin: 15mm;
-}
-
-/* إخفاء التقرير فـ الوضع العادي (الشاشة) */
-.pdf-root {
+/* Screen: Hide the PDF portal so the user doesn't see flashing content */
+#foodops-pdf-portal {
   display: none;
 }
 
+/* Print: Hide the entire application, show only the PDF portal */
 @media print {
-  /* 1. إخفاء واجهة التطبيق الرئيسية تماماً */
-  body > *:not(.pdf-root) {
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+
+  /* Hide the main app root */
+  #root {
     display: none !important;
   }
 
-  /* 2. إظهار حاوية التقرير والسماح لعناصرها بأخذ display الطبيعي (table, tr, td...) */
-  .pdf-root {
+  /* Show and position the PDF portal */
+  #foodops-pdf-portal {
     display: block !important;
-    visibility: visible !important;
     position: static !important;
     width: 100% !important;
-    max-width: 210mm !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
     background: white !important;
     color: #1a2620 !important;
     font-family: "Public Sans", sans-serif !important;
@@ -39,16 +31,10 @@
     print-color-adjust: exact !important;
   }
 
-  /* ⚠️ مهم جداً: لا تجبر display: block على كل العناصر كي لا ينهار الجدول */
-  .pdf-root * {
-    visibility: visible !important;
-  }
-
-  /* 3. تحسين الجداول لمنع الخروج عن الصفحة وتكرار العناوين */
+  /* Professional Table Pagination */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
-    font-size: 9pt !important;
     page-break-inside: auto !important;
   }
 
@@ -71,28 +57,11 @@
     padding: 4px 6px !important;
     border: 1px solid #e5e7eb !important;
     word-wrap: break-word !important;
-    overflow-wrap: break-word !important;
   }
 
-  /* 4. منع قص العناوين و KPIs بين الصفحات */
-  .pdf-header,
-  .pdf-meta,
-  .pdf-kpi-grid {
+  /* Prevent splitting headers and footers */
+  .pdf-header, .pdf-footer, .pdf-meta {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    page-break-after: avoid !important;
-  }
-
-  /* 5. تذييل الصفحة الثابت */
-  .pdf-footer {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    padding: 5mm 15mm !important;
-    font-size: 8pt !important;
-    border-top: 1px solid #d1d5db !important;
-    background: white !important;
-    page-break-inside: avoid !important;
   }
 }

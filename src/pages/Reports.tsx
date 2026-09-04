@@ -1,5 +1,5 @@
-import { Logo } from "../components/Logo";
 import { useMemo, useState } from "react";
+import { Logo } from "../components/Logo";
 import { BarChart3, Download, Printer } from "lucide-react";
 import { useApp } from "../state/AppContext";
 import { Badge, Button, Card, DataTable, EmptyState, Input, PageHead, cn } from "../components/ui";
@@ -16,7 +16,6 @@ import {
   addDaysISO,
   downloadFile,
   fmtDate,
-  fmtDateTime,
   fmtMoney,
   fmtNum,
   fmtPct,
@@ -29,16 +28,9 @@ import {
 } from "../lib/util";
 import type { DB } from "../types";
 
-// استيراد نظام تصميم PDF الجديد
-import {
-  PdfLayout,
-  PdfHeader,
-  PdfReportMeta,
-  PdfKpi,
-  PdfTable,
-  PdfFooter,
-  type PdfTableColumn,
-} from "../pdf";
+// استيراد محرك الطباعة الجديد والقوالب
+import { usePdfPrint } from '../pdf/PdfPrintManager';
+import { ReportPdf, type ReportPdfModel } from '../pdf/templates/ReportPdf';
 
 interface Ctx {
   siteId: string | null;
@@ -483,6 +475,20 @@ export function ReportsPage() {
     downloadFile(name, toCSV(result.cols, result.rows), "text/csv");
   };
 
+  const { print } = usePdfPrint();
+
+  const handlePrintReport = () => {
+    const model: ReportPdfModel = {
+      title: report.title,
+      period: `${fmtDate(from)} au ${fmtDate(to)}`,
+      scope: siteId ? siteName(siteId) : 'Tous les sites',
+      company: db.company,
+      columns: result.cols,
+      rows: result.rows // ✅ جميع البيانات ستظهر بدون تحديد (لا يوجد slice)
+    };
+    print(<ReportPdf model={model} />);
+  };
+
   const tableCols = result.cols.map((c) => ({
     key: c.key,
     label: c.label,
@@ -491,7 +497,7 @@ export function ReportsPage() {
       const v = r[c.key];
       return <span className="tnum">{typeof v === "number" ? fmtNum(v) : v}</span>;
     },
-  })) as PdfTableColumn[];
+  }));
 
   return (
     <div>
@@ -530,17 +536,8 @@ export function ReportsPage() {
                 <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-38 h-8.5 text-[12px]" />
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-38 h-8.5 text-[12px]" />
                 <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={exportCSV}>CSV</Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  icon={<Printer size={13} />} 
-                  onClick={() => {
-                    // تأكد بلي الـ PDF موجود قبل الطباعة
-                    setTimeout(() => {
-                      window.print();
-                    }, 100);
-                  }}
-                >
+                {/* ✅ تم ربط الزر بدالة الطباعة الجديدة الموثوقة */}
+                <Button variant="outline" size="sm" icon={<Printer size={13} />} onClick={handlePrintReport}>
                   PDF / Imprimer
                 </Button>
               </div>
@@ -565,39 +562,9 @@ export function ReportsPage() {
           </Card>
         </div>
       </div>
-
-      {/* ========================================== */}
-      {/* NOUVEAU SYSTÈME PDF PROFESSIONNEL (موجود برا الـ Card) */}
-      {/* ========================================== */}
-      <PdfLayout>
-        <PdfHeader 
-          company={db.company} 
-          title={report.title} 
-          subtitle={report.desc} 
-        />
-        
-        <PdfReportMeta 
-          items={[
-            { label: "Périmètre", value: siteId ? siteName(siteId) : "Tous les sites" },
-            { label: "Période", value: `${fmtDate(from)} → ${fmtDate(to)}` },
-            { label: "Généré par", value: user?.name ?? "Système" },
-            { label: "Date", value: fmtDate(new Date().toISOString()) },
-          ]} 
-        />
-
-        <PdfKpi 
-          items={[
-            { label: "Total lignes", value: fmtNum(result.rows.length) },
-          ]} 
-        />
-
-        <PdfTable 
-          columns={tableCols} 
-          rows={result.rows} // ✅ جميع البيانات ستظهر بدون تحديد
-        />
-
-        <PdfFooter companyName={db.company.name} />
-      </PdfLayout>
+      
+      {/* ✅ تم حذف كتلة <PdfLayout> من هنا لأنها تسبب تعارضاً. 
+          محرك PdfPrintManager يتكفل بعرضها تلقائياً في مكان منفصل (Portal) عند الضغط على الزر. */}
     </div>
   );
 }

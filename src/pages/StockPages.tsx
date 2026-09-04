@@ -456,7 +456,11 @@ export function MovementsPage() {
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" title="Au" />
       </div>
 
-      <DataTable cols={cols} rows={rows} rowKey={(m) => m.id} pageSize={15}
+      <DataTable 
+        cols={cols} 
+        rows={rows} 
+        rowKey={(m) => m.id} 
+        pageSize={15}
         empty={<EmptyState icon={<FileSearch size={24} />} title="Aucun mouvement" sub="Modifiez vos filtres ou validez un premier document d'entrée/sortie." />}
       />
     </div>
@@ -523,7 +527,13 @@ export function InitialStockPage() {
         </div>
       ),
     },
-    { key: "qty", label: "Quantité", align: "right", sortVal: (m) => m.qty, render: (m) => <span className="tnum font-bold text-ok">+{fmtNum(m.qty)} {db.units.find((u) => u.id === (db.products.find((p) => p.id === m.productId)?.unitId ?? ""))?.code}</span> },
+    { 
+      key: "qty", 
+      label: "Quantité", 
+      align: "right", 
+      sortVal: (m) => m.qty, 
+      render: (m) => <span className="tnum font-bold text-ok">+{fmtNum(m.qty)} {db.units.find((u) => u.id === (db.products.find((p) => p.id === m.productId)?.unitId ?? ""))?.code}</span> 
+    },
     { key: "pu", label: "Coût unitaire", align: "right", render: (m) => <span className="tnum text-ink2">{fmtMoney(m.unitCost, cur)}</span> },
     { key: "val", label: "Valeur", align: "right", sortVal: (m) => m.totalCost, render: (m) => <span className="tnum font-bold">{fmtMoney(m.totalCost, cur)}</span> },
     {
@@ -558,26 +568,30 @@ export function InitialStockPage() {
       )}
 
       <Card title={`Historique du stock initial — ${siteName(siteId)}`} sub="Mouvements INITIAL_STOCK, jamais supprimables" pad={false}>
-        <DataTable cols={cols} rows={existing} rowKey={(m) => m.id} pageSize={10}
+        <DataTable 
+          cols={cols} 
+          rows={existing} 
+          rowKey={(m) => m.id} 
+          pageSize={10}
           empty={<EmptyState icon={<Flag size={22} />} title="Aucun stock initial" sub="Ce site n'a pas encore de stock d'ouverture enregistré." />}
         />
       </Card>
 
       <Confirm
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={submit}
-        title="Enregistrer le stock initial ?"
-        confirmLabel="Enregistrer"
-        tone="primary"
-        message={
-          <>
-            <strong>{lines.length} produit(s)</strong> seront comptabilisés comme stock d'ouverture sur{" "}
-            <strong>{siteName(siteId)}</strong> à la date du <strong>{fmtDate(date)}</strong>. Cette opération crée des
-            mouvements définitifs et ne peut pas être répétée pour un même produit sur ce site.
-          </>
-        }
-      />
+  open={confirmOpen}
+  onClose={() => setConfirmOpen(false)}
+  onConfirm={submit}
+  title="Enregistrer le stock initial ?"
+  confirmText="Enregistrer"
+  variant="primary"
+  message={
+    <>
+      <strong>{lines.length} produit(s)</strong> seront comptabilisés comme stock d'ouverture sur{" "}
+      <strong>{siteName(siteId)}</strong> à la date du <strong>{fmtDate(date)}</strong>. Cette opération crée des
+      mouvements définitifs et ne peut pas être répétée pour un même produit sur ce site.
+    </>
+  }
+/>
     </div>
   );
 }
