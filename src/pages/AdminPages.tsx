@@ -305,7 +305,7 @@ export function UsersPage() {
         </div>
       </Modal>
 
-      <Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} title={confirm?.title ?? ""} message={confirm?.msg ?? ""} confirmLabel="Confirmer" />
+      <Confirm open={!!confirm} onClose={() => setConfirm(null)} onConfirm={() => confirm?.fn()} title={confirm?.title ?? ""} message={confirm?.msg ?? ""} confirmText="Confirmer" />
     </div>
   );
 }
@@ -654,7 +654,7 @@ export function BackupPage() {
         onClose={() => setPending(null)}
         onConfirm={doRestore}
         title="Restaurer cette sauvegarde ?"
-        confirmLabel="Restaurer"
+        confirmText="Restaurer"
         message={
           <>
             Le fichier contient <strong>{pending?.movements.length ?? 0} mouvements</strong> et{" "}
@@ -668,7 +668,7 @@ export function BackupPage() {
         onClose={() => setConfirmReset(false)}
         onConfirm={() => replaceDB(buildSeed())}
         title="Réinitialiser la démonstration ?"
-        confirmLabel="Réinitialiser"
+        confirmText="Réinitialiser"
         message={<>Toutes les données actuelles seront remplacées par le jeu de démonstration. Pensez à exporter une sauvegarde avant.</>}
       />
     </div>

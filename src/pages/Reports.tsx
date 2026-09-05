@@ -536,7 +536,6 @@ export function ReportsPage() {
                 <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-38 h-8.5 text-[12px]" />
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-38 h-8.5 text-[12px]" />
                 <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={exportCSV}>CSV</Button>
-                {/* ✅ تم ربط الزر بدالة الطباعة الجديدة الموثوقة */}
                 <Button variant="outline" size="sm" icon={<Printer size={13} />} onClick={handlePrintReport}>
                   PDF / Imprimer
                 </Button>
@@ -562,9 +561,6 @@ export function ReportsPage() {
           </Card>
         </div>
       </div>
-      
-      {/* ✅ تم حذف كتلة <PdfLayout> من هنا لأنها تسبب تعارضاً. 
-          محرك PdfPrintManager يتكفل بعرضها تلقائياً في مكان منفصل (Portal) عند الضغط على الزر. */}
     </div>
   );
 }

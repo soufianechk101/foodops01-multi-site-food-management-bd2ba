@@ -1,67 +1,166 @@
-/* src/pdf/PdfStyles.css */
+/* ============================================
+   FOODOPS PDF PRINT STYLES
+   Source unique et autoritaire pour tous les styles d'impression.
+   Aucun autre fichier CSS ne doit contenir de règles @media print.
+   ============================================ */
 
-/* Screen: Hide the PDF portal so the user doesn't see flashing content */
+/* Cacher le portal PDF en mode écran normal pour éviter le flash */
 #foodops-pdf-portal {
   display: none;
+  position: absolute;
+  left: -9999px;
+  top: 0;
 }
 
-/* Print: Hide the entire application, show only the PDF portal */
+/* ============================================
+   PRINT MEDIA QUERIES
+   ============================================ */
 @media print {
+  /* Configuration de la page A4 */
   @page {
     size: A4 portrait;
-    margin: 15mm;
+    margin: 12mm 10mm;
   }
 
-  /* Hide the main app root */
+  /* Réinitialisation complète du body et html pour l'impression */
+  html,
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Masquer l'application principale (#root) */
   #root {
     display: none !important;
   }
 
-  /* Show and position the PDF portal */
+  /* Afficher UNIQUEMENT le portal PDF */
   #foodops-pdf-portal {
     display: block !important;
     position: static !important;
+    left: auto !important;
+    top: auto !important;
     width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     background: white !important;
     color: #1a2620 !important;
-    font-family: "Public Sans", sans-serif !important;
+    font-family: "Public Sans", system-ui, sans-serif !important;
     font-size: 10pt !important;
     line-height: 1.4 !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
-  /* Professional Table Pagination */
+  /* ============================================
+     PDF DOCUMENT - Reset complet du conteneur
+     ============================================ */
+  .pdf-document {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: #1a2620 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* ============================================
+     TABLE STYLES - Pagination correcte et professionnelle
+     ============================================ */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
     page-break-inside: auto !important;
+    font-size: 9pt !important;
+    margin: 0 !important;
   }
 
+  /* Répéter l'en-tête du tableau sur chaque nouvelle page */
   thead {
     display: table-header-group !important;
-    page-break-inside: avoid !important;
   }
 
+  /* Répéter le pied du tableau si nécessaire */
   tfoot {
     display: table-footer-group !important;
-    page-break-inside: avoid !important;
   }
 
-  tr {
+  /* Empêcher les lignes de se couper verticalement entre deux pages */
+  tbody tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
 
-  th, td {
-    padding: 4px 6px !important;
-    border: 1px solid #e5e7eb !important;
+  td, th {
+    padding: 6px 8px !important;
+    border: 1px solid #d1d5db !important;
     word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    vertical-align: top !important;
   }
 
-  /* Prevent splitting headers and footers */
-  .pdf-header, .pdf-footer, .pdf-meta {
+  th {
+    background-color: #f3f4f6 !important;
+    font-weight: 600 !important;
+    text-align: left !important;
+  }
+
+  /* ============================================
+     SECTIONS PDF - Éviter les coupures malheureuses
+     ============================================ */
+  .pdf-header,
+  .pdf-footer,
+  .pdf-meta,
+  .pdf-kpi-grid,
+  .pdf-section,
+  .pdf-signatures,
+  .pdf-empty-state {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  /* ============================================
+     TYPOGRAPHY
+     ============================================ */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    orphans: 3 !important;
+    widows: 3 !important;
+  }
+
+  p {
+    orphans: 2 !important;
+    widows: 2 !important;
+  }
+
+  /* ============================================
+     UTILITAIRES
+     ============================================ */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Forcer l'affichage des couleurs de fond et des bordures */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Garantir l'absence de scrollbars ou de clipping dans le PDF */
+  * {
+    overflow: visible !important;
+    max-height: none !important;
   }
 }

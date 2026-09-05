@@ -1,70 +1,108 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import './PdfStyles.css';
 
 interface PdfContextType {
   print: (document: React.ReactNode) => Promise<void>;
+  isPrinting: boolean;
 }
 
-const PdfContext = createContext<PdfContextType>({ print: async () => {} });
+const PdfContext = createContext<PdfContextType>({
+  print: async () => {},
+  isPrinting: false,
+});
 
 export function PdfPrintProvider({ children }: { children: React.ReactNode }) {
   const [activeDocument, setActiveDocument] = useState<React.ReactNode>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
   const resolveRef = useRef<(() => void) | null>(null);
+  const rejectRef = useRef<((err: Error) => void) | null>(null);
+  const isMountedRef = useRef<boolean>(false);
 
   const print = useCallback((document: React.ReactNode): Promise<void> => {
-    return new Promise((resolve) => {
+    if (isPrinting) {
+      console.warn('[PdfPrintManager] Une impression est déjà en cours');
+      return Promise.reject(new Error('Impression déjà en cours'));
+    }
+
+    return new Promise<void>((resolve, reject) => {
       resolveRef.current = resolve;
+      rejectRef.current = reject;
+      setIsPrinting(true);
       setActiveDocument(document);
     });
-  }, []);
+  }, [isPrinting]);
 
   useEffect(() => {
     if (!activeDocument) return;
 
-    // Wait for React to render the portal and fonts to load
-    const timer = setTimeout(() => {
-      window.print();
-    }, 100); // Small delay ensures layout is calculated
+    isMountedRef.current = true;
 
-    const handleAfterPrint = () => {
-      setActiveDocument(null);
-      if (resolveRef.current) resolveRef.current();
-      resolveRef.current = null;
-    };
+    const executePrint = async () => {
+      try {
+        // 1. Attendre React render
+        await new Promise((r) => requestAnimationFrame(r));
+        await new Promise((r) => requestAnimationFrame(r));
 
-    window.addEventListener('afterprint', handleAfterPrint);
-    
-    // Fallback if user cancels print dialog (some browsers don't fire afterprint)
-    const visibilityHandler = () => {
-      if (document.visibilityState === 'visible' && activeDocument) {
-         // Give it a moment, if still active, assume cancelled or done
-         setTimeout(() => {
-             if (activeDocument) {
-                 setActiveDocument(null);
-                 if (resolveRef.current) resolveRef.current();
-             }
-         }, 1000);
+        // 2. Attendre browser layout
+        await new Promise((r) => setTimeout(r, 50));
+
+        // 3. Attendre fonts si disponibles
+        if ('fonts' in document && document.fonts?.ready) {
+          try {
+            await document.fonts.ready;
+          } catch {
+            // Ignore font errors
+          }
+        }
+
+        // 4. Exécuter print
+        if (!isMountedRef.current) return;
+        window.print();
+      } catch (err) {
+        console.error('[PdfPrintManager] Erreur lors de l\'impression:', err);
+        if (rejectRef.current) {
+          rejectRef.current(err instanceof Error ? err : new Error(String(err)));
+        }
+        cleanup();
       }
     };
-    document.addEventListener('visibilitychange', visibilityHandler);
+
+    const cleanup = () => {
+      isMountedRef.current = false;
+      setActiveDocument(null);
+      setIsPrinting(false);
+      resolveRef.current = null;
+      rejectRef.current = null;
+    };
+
+    const handleAfterPrint = () => {
+      if (resolveRef.current) resolveRef.current();
+      cleanup();
+    };
+
+    executePrint();
+
+    window.addEventListener('afterprint', handleAfterPrint, { once: true });
 
     return () => {
-      clearTimeout(timer);
       window.removeEventListener('afterprint', handleAfterPrint);
-      document.removeEventListener('visibilitychange', visibilityHandler);
+      if (isMountedRef.current) {
+        cleanup();
+      }
     };
   }, [activeDocument]);
 
   return (
-    <PdfContext.Provider value={{ print }}>
+    <PdfContext.Provider value={{ print, isPrinting }}>
       {children}
-      {createPortal(
-        <div id="foodops-pdf-portal">
-          {activeDocument}
-        </div>,
-        document.body
-      )}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <div id="foodops-pdf-portal" aria-hidden={!isPrinting}>
+            {activeDocument}
+          </div>,
+          document.body
+        )}
     </PdfContext.Provider>
   );
 }

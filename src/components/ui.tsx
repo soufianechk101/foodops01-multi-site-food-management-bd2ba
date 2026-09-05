@@ -928,7 +928,7 @@ export function Confirm({
   open: boolean;
   onClose: () => void;
   title: string;
-  message: string;
+  message: React.ReactNode; // <-- هاد التغيير هو لي غادي يحل مشكلة 'Element'
   onConfirm: () => void;
   confirmText?: string;
   cancelText?: string;
@@ -936,7 +936,7 @@ export function Confirm({
 }) {
   return (
     <Modal open={open} onClose={onClose} title={title}>
-      <p className="text-[13.5px] text-ink2 leading-relaxed mb-6">{message}</p>
+      <div className="text-[13.5px] text-ink2 leading-relaxed mb-6">{message}</div>
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={onClose}>
           {cancelText}

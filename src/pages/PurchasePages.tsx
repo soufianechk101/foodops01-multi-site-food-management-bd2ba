@@ -257,7 +257,13 @@ export function PurchaseOrdersPage() {
         </div>
       </Modal>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="Détail du Bon de Commande" sub={detail?.number || ""} width="max-w-4xl">
+      <Modal 
+        open={!!detail} 
+        onClose={() => setDetail(null)} 
+        title={detail ? `Détail du Bon de Commande ${detail.number}` : ""} 
+        sub={detail ? `${siteName(detail.siteId)} · ${fmtDate(detail.date)}` : ""} 
+        width="max-w-4xl"
+      >
         {detail && (
           <div className="max-h-[85vh] overflow-y-auto p-6 space-y-4">
             <div className="flex items-start gap-4 border-b border-line pb-4">
@@ -355,6 +361,7 @@ export function ReceptionsPage() {
       supplierName: db.suppliers.find(s => s.id === rec.supplierId)?.name || '',
       siteName: siteName(rec.siteId),
       poNumber: rec.poId ? db.purchaseOrders.find(p => p.id === rec.poId)?.number : undefined,
+      notes: rec.notes,
       company: db.company,
       totalHT: rec.lines.reduce((sum, l) => sum + l.receivedQty * l.unitCost, 0),
       lines: rec.lines.map(l => {
@@ -496,7 +503,6 @@ export function ReceptionsPage() {
         </div>
       </Modal>
 
-      {/* ✅ هاد هو التصحيح: استعملنا detail ? ... : "" باش نتأكدو بلي detail ماشي null قبل ما نقراو منها */}
       <Modal 
         open={!!detail} 
         onClose={() => setDetail(null)} 
@@ -770,7 +776,7 @@ export function InvoicesPage() {
         </div>
       </Modal>
 
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Facture ${detail?.number}`} sub="" width="max-w-3xl">
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={detail ? `Facture ${detail.number}` : ""} sub="" width="max-w-3xl">
         {detail && (
           <div className="max-h-[calc(90vh-100px)] overflow-y-auto pr-2 space-y-4">
             <div className="flex items-start gap-4 border-b border-line pb-4">
@@ -989,7 +995,7 @@ export function PaymentsPage() {
         footer={`${rows.length} règlement(s) · total ${fmtMoney(total, cur)}`}
         empty={<EmptyState icon={<Wallet size={24} />} title="Aucun règlement" sub="Depuis la page Factures, utilisez « Régler » pour enregistrer un paiement total ou partiel." />}
       />
-      <Modal open={!!detail} onClose={() => setDetail(null)} title={`Règlement ${detail?.number}`} width="max-w-md">
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={detail ? `Règlement ${detail.number}` : ""} width="max-w-md">
         {detail && (
           <div className="space-y-2 text-[13px] max-h-[calc(90vh-150px)] overflow-y-auto pr-2">
             <p><span className="text-mute">Fournisseur :</span> <strong>{db.suppliers.find((s) => s.id === detail.supplierId)?.name}</strong></p>
