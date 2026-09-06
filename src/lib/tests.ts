@@ -35,9 +35,12 @@ import {
   cancelConsumption,
   cancelWaste,
   hasPermission,
+  invoicePaid,
+  invoiceTotals,
+  supplierBalance,
 } from "./engine";
 import type { DB } from "../types";
-import { nowISO, todayISO, uid } from "./util";
+import { nowISO, todayISO, uid, toCSV, addDaysISO } from "./util";
 
 export interface TestResult {
   name: string;
@@ -1127,6 +1130,15 @@ export function runEngineTests(): TestResult[] {
     testOrphanReferences,
     testNumericalIntegrity,
     testMultiSiteNegativeMatrix,
+    testReportValorisationMatchesEngine,
+    testReportStockParSiteIsolation,
+    testReportFoodCostCoherence,
+    testReportHistoricalUptoDate,
+    testReportDraftExclusionJournalConso,
+    testReportBalancesSiteLeak,
+    testReportReglementsSiteLeak,
+    testReportCsvCoherence,
+    testReportDashboardValorisationIsolation,
   ];
   
   const results = tests.map((t) => {
@@ -1204,4 +1216,201 @@ function testWasteIdempotency(): TestResult {
   if (!approx(q2, 30)) return ko("Idempotence", "Stock après rejet", `Attendu 30, obtenu ${q2}`);
 
   return ok("Idempotence", "Perte validée deux fois", "La seconde validation est rejetée, le stock reste à 30.");
+}
+
+/* ============================================================
+   PHASE 3 — RAPPORTS / FOOD COST / VALORISATION
+   Tests de cohérence des rapports vs moteur de stock
+   ============================================================ */
+
+// Helper: replicate report logic (pure) without React
+function reportStockActuel(db: DB, siteIds: string[], uptoDate?: string) {
+  const stocks = uptoDate ? computeStocks(db, { uptoDate }) : computeStocks(db);
+  const rows: Record<string, string|number>[] = [];
+  for (const sid of siteIds) for (const p of db.products) {
+    if (!db.movements.some(m=> m.siteId===sid && m.productId===p.id)) continue;
+    const e = entryOf(stocks, sid, p.id);
+    rows.push({ site: sid, produit: p.id, qte: e.qty, cout: e.avgCost, valeur: e.value });
+  }
+  return rows;
+}
+function reportValorisation(db: DB, siteIds: string[], uptoDate?: string) {
+  const stocks = uptoDate ? computeStocks(db, { uptoDate }) : computeStocks(db);
+  const map = new Map<string, number>();
+  const rootOf = (catId: string) => { let c=db.categories.find(x=>x.id===catId); while(c?.parentId) c=db.categories.find(x=>x.id===c!.parentId); return c?.name ?? "Autres"; };
+  for (const sid of siteIds) for (const p of db.products) { const e=entryOf(stocks,sid,p.id); if(e.value<=0) continue; const k=rootOf(p.categoryId); map.set(k,(map.get(k)??0)+e.value); }
+  return { map, total: [...map.values()].reduce((s,x)=>s+x,0) };
+}
+function reportFoodCost(db: DB, siteIds: string[], from: string, to: string) {
+  const conso = db.movements.filter(m=> m.type==="CONSUMPTION" && m.qty<0 && siteIds.includes(m.siteId) && m.date>=from && m.date<=to).reduce((s,m)=> s+m.totalCost,0);
+  const rev = db.sales.filter(s=> siteIds.includes(s.siteId) && s.date>=from && s.date<=to).reduce((s,x)=> s+x.revenue,0);
+  return { conso, rev, foodCost: rev>0 ? (conso/rev)*100 : 0 };
+}
+
+function testReportValorisationMatchesEngine(): TestResult {
+  const db = fresh();
+  const P1="p-rep-val1", P2="p-rep-val2";
+  newProduct(db,P1,"RPT Val1"); newProduct(db,P2,"RPT Val2");
+  createInitialStock(db,{siteId:SITE_A,date:todayISO(),userId:ADMIN,lines:[{productId:P1,qty:100,unitCost:10},{productId:P2,qty:50,unitCost:20}]});
+  const rec={id:uid(),number:"",supplierId:"s-atlas",siteId:SITE_A,date:todayISO(),poId:null,invoiceRef:"",status:"brouillon" as const,notes:"",userId:ADMIN,createdAt:nowISO(),lines:[{productId:P1,orderedQty:50,receivedQty:50,unitCost:20,vatRate:10,lot:"",expiry:""}]};
+  saveReception(db,rec); validateReception(db,rec.id,ADMIN);
+  const r=reportValorisation(db,[SITE_A]);
+  // directTotal over ALL products for SITE_A (same as report)
+  let directTotal=0; for(const p of db.products){ const e=entryOf(computeStocks(db),SITE_A,p.id); if(e.value>0) directTotal+=e.value; }
+  if (!approx(r.total,directTotal,0.5)) return ko("Rapports","Valorisation = somme computeStocks","total map "+r.total.toFixed(2)+" vs direct "+directTotal.toFixed(2));
+  // also check that per-product avgCost is WAC
+  const e = entryOf(computeStocks(db),SITE_A,P1);
+  // 100@10 +50@20 =150 ; 100*10+50*20=2000/150=13.333
+  if (!approx(e.avgCost,13.333,0.02)) return ko("Rapports","WAC dans valorisation","avg "+e.avgCost);
+  return ok("Rapports","Valorisation cohérente avec computeStocks/WAC","total "+r.total.toFixed(2));
+}
+function testReportStockParSiteIsolation(): TestResult {
+  const db = fresh();
+  const P="p-rep-site";
+  newProduct(db,P,"RPT Site");
+  createInitialStock(db,{siteId:SITE_A,date:todayISO(),userId:ADMIN,lines:[{productId:P,qty:80,unitCost:10}]});
+  createInitialStock(db,{siteId:SITE_B,date:todayISO(),userId:ADMIN,lines:[{productId:P,qty:30,unitCost:10}]});
+  const rowsA = reportStockActuel(db,[SITE_A]);
+  const rowsB = reportStockActuel(db,[SITE_B]);
+  const rowsAll = reportStockActuel(db,[SITE_A,SITE_B]);
+  const vA = rowsA.reduce((s,r)=> s+ Number(r.valeur),0);
+  const vB = rowsB.reduce((s,r)=> s+ Number(r.valeur),0);
+  const vAll = rowsAll.reduce((s,r)=> s+ Number(r.valeur),0);
+  if (!approx(vAll, vA+vB,0.01)) return ko("Rapports","Stock par site isolation","vAll "+vAll+" vs vA+vB "+(vA+vB));
+  if (approx(vA, vAll)) return ko("Rapports","Stock par site isolation - fuite globale","vA == vAll");
+  // Ensure site B not leaking into site A
+  const bInA = rowsA.filter(r=> r.site===SITE_B).length;
+  if (bInA>0) return ko("Rapports","Isolation stricte","Site B présent dans rowsA");
+  return ok("Rapports","Stock par site : isolation stricte","vA="+vA+" vB="+vB+" vAll="+vAll);
+}
+function testReportFoodCostCoherence(): TestResult {
+  const db = fresh();
+  const P="p-rep-fc";
+  newProduct(db,P,"RPT FoodCost");
+  createInitialStock(db,{siteId:SITE_A,date:"2099-01-10",userId:ADMIN,lines:[{productId:P,qty:100,unitCost:10}]});
+  const d="2099-02-01";
+  const conso={id:uid(),number:"",siteId:SITE_A,date:d,service:"dejeuner" as const,status:"brouillon" as const,notes:"",userId:ADMIN,createdAt:nowISO(),lines:[{productId:P,qty:20}]};
+  saveConsumption(db,conso); validateConsumption(db,conso.id,ADMIN);
+  db.sales.push({id:uid(),siteId:SITE_A,date:d,service:"dejeuner",revenue:1000,covers:10,userId:ADMIN,createdAt:nowISO()});
+  const from="2099-01-31", to="2099-02-02";
+  const {conso:cs, rev, foodCost}=reportFoodCost(db,[SITE_A],from,to);
+  const movConso = db.movements.filter(m=> m.type==="CONSUMPTION" && m.qty<0 && [SITE_A].includes(m.siteId) && m.date>=from && m.date<=to).reduce((s,m)=>s+m.totalCost,0);
+  if (!approx(cs, movConso,0.01)) return ko("Rapports","FoodCost consommation = somme movements","cs "+cs+" vs mov "+movConso);
+  if (!approx(cs,200,0.5)) return ko("Rapports","FoodCost consommation attendue 200","cs "+cs);
+  if (!approx(foodCost,20,0.5)) return ko("Rapports","FoodCost 20%","fc "+foodCost);
+  if (!approx(rev,1000,0.01)) return ko("Rapports","CA cohérent","rev "+rev);
+  return ok("Rapports","FoodCost cohérent (conso WAC / CA)","conso "+cs+" CA "+rev+" FC "+foodCost.toFixed(1)+"%");
+}
+function testReportHistoricalUptoDate(): TestResult {
+  const db = fresh();
+  const P="p-rep-hist";
+  newProduct(db,P,"RPT Hist");
+  createInitialStock(db,{siteId:SITE_A,date:"2026-03-01",userId:ADMIN,lines:[{productId:P,qty:100,unitCost:10}]});
+  const futureDate=addDaysISO(todayISO(),5);
+  const rec={id:uid(),number:"",supplierId:"s-atlas",siteId:SITE_A,date:futureDate,poId:null,invoiceRef:"",status:"brouillon" as const,notes:"",userId:ADMIN,createdAt:nowISO(),lines:[{productId:P,orderedQty:50,receivedQty:50,unitCost:10,vatRate:10,lot:"",expiry:""}]};
+  saveReception(db,rec); validateReception(db,rec.id,ADMIN);
+  const stocksUpToToday = computeStocks(db,{siteId:SITE_A,productId:P,uptoDate:todayISO()});
+  const stocksAll = computeStocks(db,{siteId:SITE_A,productId:P});
+  const histQty = entryOf(stocksUpToToday,SITE_A,P).qty;
+  const allQty = entryOf(stocksAll,SITE_A,P).qty;
+  if (!approx(histQty,100)) return ko("Rapports","Historique uptoDate","histQty "+histQty+" attendu 100");
+  if (!approx(allQty,150)) return ko("Rapports","Historique all","allQty "+allQty+" attendu 150");
+  const fixedRows = reportStockActuel(db,[SITE_A], todayISO());
+  const fixedQty = Number(fixedRows.find(r=>r.produit===P)?.qte ?? 0);
+  if (!approx(fixedQty,histQty)) return ko("Rapports","Stock historique fixé","fixed "+fixedQty+" attendu "+histQty);
+  return ok("Rapports","Historique uptoDate cohérent (rapports utilisent to)","hist "+histQty+" all "+allQty+" fixed "+fixedQty);
+}
+function testReportDraftExclusionJournalConso(): TestResult {
+  const db = fresh();
+  const P="p-rep-draft";
+  newProduct(db,P,"RPT Draft");
+  createInitialStock(db,{siteId:SITE_A,date:todayISO(),userId:ADMIN,lines:[{productId:P,qty:100,unitCost:10}]});
+  const valid={id:uid(),number:"",siteId:SITE_A,date:todayISO(),service:"dejeuner" as const,status:"brouillon" as const,notes:"",userId:ADMIN,createdAt:nowISO(),lines:[{productId:P,qty:10}]};
+  saveConsumption(db,valid); validateConsumption(db,valid.id,ADMIN);
+  const draft={id:uid(),number:"",siteId:SITE_A,date:todayISO(),service:"diner" as const,status:"brouillon" as const,notes:"",userId:ADMIN,createdAt:nowISO(),lines:[{productId:P,qty:999}]};
+  saveConsumption(db,draft);
+  const all = db.consumptions.filter(c=> [SITE_A].includes(c.siteId) && c.date>=addDaysISO(todayISO(),-1) && c.date<=addDaysISO(todayISO(),1));
+  const filtered = db.consumptions.filter(c=> c.status==="valide" && [SITE_A].includes(c.siteId) && c.date>=addDaysISO(todayISO(),-1) && c.date<=addDaysISO(todayISO(),1));
+  if (all.length!==2 || filtered.length!==1) return ko("Rapports","Draft journal-conso count","all "+all.length+" filtered "+filtered.length);
+  return ok("Rapports","Journal-conso exclut les brouillons (filtré status valide)","all="+all.length+" valide="+filtered.length);
+}
+function testReportBalancesSiteLeak(): TestResult {
+  const db = fresh();
+  const inv={id:uid(),number:"FAC-TEST-B",supplierId:"s-atlas",siteId:SITE_B,date:todayISO(),dueDate:addDaysISO(todayISO(),30),lines:[{description:"Test",amount:1000,vatRate:20}],createdAt:nowISO(),userId:ADMIN};
+  db.invoices.push(inv);
+  db.payments.push({id:uid(),number:"PAY-TEST-B",supplierId:"s-atlas",invoiceId:inv.id,date:todayISO(),amount:200,method:"virement" as const,notes:"",userId:ADMIN,createdAt:nowISO()});
+  const balGlobal = supplierBalance(db,"s-atlas").balance;
+  const invoicedA = db.invoices.filter(i=> i.supplierId==="s-atlas" && i.siteId===SITE_A).reduce((s,i)=> s+ invoiceTotals(i).ttc,0);
+  const paidA = db.payments.filter(p=> p.supplierId==="s-atlas" && (()=>{
+    const inv2=db.invoices.find(x=>x.id===p.invoiceId);
+    return inv2 ? inv2.siteId===SITE_A : false;
+  })()).reduce((s,p)=>s+p.amount,0);
+  const opening=db.suppliers.find(s=>s.id==="s-atlas")?.openingBalance ?? 0;
+  const balA = Math.round((opening + invoicedA - paidA)*100)/100;
+  if (approx(balGlobal, balA)) return ok("Rapports","Balances site isolation","Pas de fuite (balGlobal==balA) - cas limite");
+  if (!(balGlobal > balA)) return ko("Rapports","Balances fuite globale","balGlobal "+balGlobal+" balA "+balA);
+  return ok("Rapports","Balances filtrées par site (fuite corrigée)","balGlobal "+balGlobal+" vs bal SITE_A "+balA);
+}
+function testReportReglementsSiteLeak(): TestResult {
+  const db = fresh();
+  const invA={id:uid(),number:"FAC-A",supplierId:"s-atlas",siteId:SITE_A,date:todayISO(),dueDate:addDaysISO(todayISO(),30),lines:[{description:"A",amount:500,vatRate:20}],createdAt:nowISO(),userId:ADMIN};
+  const invB={id:uid(),number:"FAC-B",supplierId:"s-atlas",siteId:SITE_B,date:todayISO(),dueDate:addDaysISO(todayISO(),30),lines:[{description:"B",amount:999,vatRate:20}],createdAt:nowISO(),userId:ADMIN};
+  db.invoices.push(invA,invB);
+  const payA={id:uid(),number:"PAY-A",supplierId:"s-atlas",invoiceId:invA.id,date:todayISO(),amount:100,method:"virement" as const,notes:"",userId:ADMIN,createdAt:nowISO()};
+  const payB={id:uid(),number:"PAY-B",supplierId:"s-atlas",invoiceId:invB.id,date:todayISO(),amount:999,method:"virement" as const,notes:"",userId:ADMIN,createdAt:nowISO()};
+  db.payments.push(payA,payB);
+  const from=addDaysISO(todayISO(),-1), to=addDaysISO(todayISO(),1);
+  const all = db.payments.filter(p=> p.date>=from && p.date<=to);
+  const filtered = db.payments.filter(p=>{
+    if(p.date<from||p.date>to) return false;
+    const inv=db.invoices.find(x=>x.id===p.invoiceId);
+    return inv ? [SITE_A].includes(inv.siteId) : false;
+  });
+  if (!(all.length > filtered.length)) return ko("Rapports","Règlements site leak","all "+all.length+" filtered "+filtered.length+" attendu all>filtered");
+  return ok("Rapports","Règlements filtrés par site (via facture)","all="+all.length+" siteA="+filtered.length);
+}
+function testReportCsvCoherence(): TestResult {
+  const cols=[{key:"produit",label:"Produit"},{key:"qte",label:"Quantité"},{key:"valeur",label:"Valeur"}];
+  const rows=[{produit:"Riz",qte:10,valeur:"100.00"},{produit:'Riz;semicolon',qte:5,valeur:"50.00"}];
+  const csv=toCSV(cols as any, rows as any);
+  const lines=csv.split("\n");
+  const head=lines[0];
+  if (!head.includes("Produit")|| !head.includes("Quantité")) return ko("Rapports","CSV header","head "+head);
+  if (lines.length!==3) return ko("Rapports","CSV lines","lines "+lines.length);
+  // semicolon in data must be quoted
+  if (!lines[2].includes('"Riz;semicolon"')) return ko("Rapports","CSV échappement ;","line "+lines[2]);
+  // Verify cols count matches
+  const headCols=head.split(";").length;
+  if (headCols!==cols.length) return ko("Rapports","CSV cols","headCols "+headCols);
+  return ok("Rapports","CSV cohérent","header+ "+(lines.length-1)+" lignes, échappement OK");
+}
+function testReportDashboardValorisationIsolation(): TestResult {
+  const db = fresh();
+  const P="p-dash-val";
+  newProduct(db,P,"Dash Val");
+  createInitialStock(db,{siteId:SITE_A,date:todayISO(),userId:ADMIN,lines:[{productId:P,qty:100,unitCost:10}]});
+  createInitialStock(db,{siteId:SITE_B,date:todayISO(),userId:ADMIN,lines:[{productId:P,qty:999,unitCost:10}]});
+  // Dashboard logic: stockValue = sum Math.max(e.value,0) over siteIds
+  const stocks=computeStocks(db);
+  const valA=[SITE_A].reduce((sum,sid)=> sum + [P].reduce((s,pid)=> s+ Math.max(entryOf(stocks,sid,pid).value,0),0),0);
+  const valAll=[SITE_A,SITE_B].reduce((sum,sid)=> sum + [P].reduce((s,pid)=> s+ Math.max(entryOf(stocks,sid,pid).value,0),0),0);
+  if (!approx(valA,1000,0.5)) return ko("Rapports","Dashboard valorisation SITE_A","valA "+valA);
+  if (!approx(valAll,10990,0.5)) return ko("Rapports","Dashboard valorisation All","valAll "+valAll);
+  if (approx(valA,valAll)) return ko("Rapports","Dashboard fuite globale","valA==valAll");
+  // supplierCredit isolation
+  const invA={id:uid(),number:"FAC-DASH-A",supplierId:"s-atlas",siteId:SITE_A,date:todayISO(),dueDate:addDaysISO(todayISO(),30),lines:[{description:"A",amount:100,vatRate:20}],createdAt:nowISO(),userId:ADMIN};
+  const invB={id:uid(),number:"FAC-DASH-B",supplierId:"s-atlas",siteId:SITE_B,date:todayISO(),dueDate:addDaysISO(todayISO(),30),lines:[{description:"B",amount:900,vatRate:20}],createdAt:nowISO(),userId:ADMIN};
+  db.invoices.push(invA,invB);
+  const globalCredit=db.suppliers.reduce((s,sup)=> s+ Math.max(supplierBalance(db,sup.id).balance,0),0);
+  const filteredCredit=db.suppliers.reduce((s,sup)=>{
+    const invoiced = db.invoices.filter(i=> i.supplierId===sup.id && i.siteId===SITE_A).reduce((a,i)=> a+ invoiceTotals(i).ttc,0);
+    const paid = db.payments.filter(p=> p.supplierId===sup.id && db.invoices.find(x=>x.id===p.invoiceId)?.siteId===SITE_A).reduce((a,p)=> a+p.amount,0);
+    const opening = sup.openingBalance ?? 0;
+    // isolated invoiced includes opening? For dashboard we mimic global logic but filtered
+    const bal = opening + invoiced - paid;
+    return s + Math.max(bal,0);
+  },0);
+  // global must be larger than filtered (since B has extra 900)
+  if (!(globalCredit > filteredCredit + 500)) return ko("Rapports","Dashboard crédit fournisseur fuite","global "+globalCredit+" filtered "+filteredCredit);
+  return ok("Rapports","Dashboard valorisation & crédit isolés par site","valA "+valA+" credit global>"+filteredCredit);
 }

@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import { useApp } from "../state/AppContext";
 import { Badge, Button, Card, Gauge, PageHead, Stat, cn } from "../components/ui";
-import { computeStocks, entryOf, siteExpiries, stockStatus, supplierBalance } from "../lib/engine";
+import { computeStocks, entryOf, invoiceTotals, siteExpiries, stockStatus } from "../lib/engine";
 import {
   addDaysISO,
   fmtDate,
@@ -72,7 +72,12 @@ export function Dashboard() {
       }
     }
 
-    const supplierCredit = db.suppliers.reduce((s, sup) => s + Math.max(supplierBalance(db, sup.id).balance, 0), 0);
+    const supplierCredit = db.suppliers.reduce((s, sup) => {
+      const opening = sup.openingBalance ?? 0;
+      const invoiced = db.invoices.filter((i) => i.supplierId === sup.id && inScope(i.siteId)).reduce((sum, i) => sum + invoiceTotals(i).ttc, 0);
+      const paid = db.payments.filter((p) => p.supplierId === sup.id && p.invoiceId && inScope(db.invoices.find((x) => x.id === p.invoiceId)?.siteId ?? "")).reduce((sum, p) => sum + p.amount, 0);
+      return s + Math.max(Math.round((opening + invoiced - paid) * 100) / 100, 0);
+    }, 0);
 
     // séries journalières
     const series: { d: string; achats: number; conso: number; ca: number }[] = [];

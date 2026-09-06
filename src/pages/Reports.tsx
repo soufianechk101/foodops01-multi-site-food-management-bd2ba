@@ -54,8 +54,8 @@ const REPORTS: ReportDef[] = [
     group: "Stock",
     title: "État du stock actuel",
     desc: "Quantités, coûts moyens pondérés et valeurs par site et par produit — calculés depuis les mouvements validés.",
-    build: (db, { siteIds }) => {
-      const stocks = computeStocks(db);
+    build: (db, { siteIds, to }) => {
+      const stocks = computeStocks(db, { uptoDate: to });
       const rows: Record<string, string | number>[] = [];
       for (const sid of siteIds) {
         const site = db.sites.find((s) => s.id === sid);
@@ -85,8 +85,8 @@ const REPORTS: ReportDef[] = [
     group: "Stock",
     title: "Valorisation du stock par famille",
     desc: "Valeur du stock regroupée par famille de catégories.",
-    build: (db, { siteIds }) => {
-      const stocks = computeStocks(db);
+    build: (db, { siteIds, to }) => {
+      const stocks = computeStocks(db, { uptoDate: to });
       const rootOf = (catId: string): string => {
         let c = db.categories.find((x) => x.id === catId);
         while (c?.parentId) c = db.categories.find((x) => x.id === c!.parentId);
@@ -119,8 +119,8 @@ const REPORTS: ReportDef[] = [
     group: "Stock",
     title: "Stocks faibles & ruptures",
     desc: "Produits sous leur seuil de réapprovisionnement ou en rupture, par site.",
-    build: (db, { siteIds }) => {
-      const stocks = computeStocks(db);
+    build: (db, { siteIds, to }) => {
+      const stocks = computeStocks(db, { uptoDate: to });
       const rows: Record<string, string | number>[] = [];
       for (const sid of siteIds) {
         const site = db.sites.find((s) => s.id === sid);
@@ -163,8 +163,8 @@ const REPORTS: ReportDef[] = [
     group: "Stock",
     title: "Stock par site",
     desc: "Synthèse consolidée : valeur et références par site — preuve que le stock n'est jamais global.",
-    build: (db, { siteIds }) => {
-      const stocks = computeStocks(db);
+    build: (db, { siteIds, to }) => {
+      const stocks = computeStocks(db, { uptoDate: to });
       const rows = siteIds.map((sid) => {
         const site = db.sites.find((s) => s.id === sid);
         let valeur = 0;
@@ -256,7 +256,7 @@ const REPORTS: ReportDef[] = [
     build: (db, { siteIds, from, to }) => ({
       cols: [{ key: "num", label: "N°" }, { key: "date", label: "Date" }, { key: "site", label: "Site" }, { key: "service", label: "Service" }, { key: "cout", label: "Coût" }, { key: "statut", label: "Statut" }],
       rows: db.consumptions
-        .filter((c) => siteIds.includes(c.siteId) && c.date >= from && c.date <= to)
+        .filter((c) => c.status === "valide" && siteIds.includes(c.siteId) && c.date >= from && c.date <= to)
         .map((c) => ({
           num: c.number, date: c.date,
           site: db.sites.find((s) => s.id === c.siteId)?.name ?? "",
@@ -335,9 +335,9 @@ const REPORTS: ReportDef[] = [
     group: "Inventaire",
     title: "Écarts d'inventaire",
     desc: "Théorique vs compté pour les inventaires validés, avec valeur d'écart.",
-    build: (db, { siteIds }) => {
+    build: (db, { siteIds, from, to }) => {
       const rows: Record<string, string | number>[] = [];
-      for (const inv of db.inventories.filter((i) => i.status === "valide" && siteIds.includes(i.siteId)))
+      for (const inv of db.inventories.filter((i) => i.status === "valide" && siteIds.includes(i.siteId) && i.date >= from && i.date <= to))
         for (const l of inv.lines) {
           if (l.actualQty === null) continue;
           const variance = l.actualQty - l.theoreticalQty;
@@ -360,12 +360,17 @@ const REPORTS: ReportDef[] = [
     id: "balances",
     group: "Fournisseurs",
     title: "Balances fournisseurs",
-    desc: "Soldes dus par fournisseur : solde d'ouverture + factures − règlements.",
-    build: (db) => ({
+    desc: "Soldes dus par fournisseur : solde d'ouverture + factures − règlements (filtrés par site).",
+    build: (db, { siteIds }) => ({
       cols: [{ key: "fournisseur", label: "Fournisseur" }, { key: "facture", label: "Total facturé" }, { key: "paye", label: "Total payé" }, { key: "solde", label: "Solde dû" }],
       rows: db.suppliers.map((s) => {
-        const b = supplierBalance(db, s.id);
-        return { fournisseur: s.name, facture: b.invoiced.toFixed(2), paye: b.paid.toFixed(2), solde: b.balance.toFixed(2) };
+        const opening = s.openingBalance ?? 0;
+        const invoiced = db.invoices.filter((i) => i.supplierId === s.id && siteIds.includes(i.siteId)).reduce((sum, i) => sum + invoiceTotals(i).ttc, 0);
+        const paid = db.payments.filter((p) => p.supplierId === s.id && (p.invoiceId ? siteIds.includes(db.invoices.find((x) => x.id === p.invoiceId)?.siteId ?? "") : false)).reduce((sum, p) => sum + p.amount, 0);
+        const totInvoiced = Math.round((opening + invoiced) * 100) / 100;
+        const totPaid = Math.round(paid * 100) / 100;
+        const balance = Math.round((opening + invoiced - paid) * 100) / 100;
+        return { fournisseur: s.name, facture: totInvoiced.toFixed(2), paye: totPaid.toFixed(2), solde: balance.toFixed(2) };
       }),
     }),
   },
@@ -394,11 +399,16 @@ const REPORTS: ReportDef[] = [
     id: "reglements",
     group: "Fournisseurs",
     title: "Règlements fournisseurs",
-    desc: "Journal des paiements de la période.",
-    build: (db, { from, to }) => ({
+    desc: "Journal des paiements de la période (filtré par site via facture).",
+    build: (db, { siteIds, from, to }) => ({
       cols: [{ key: "num", label: "N°" }, { key: "date", label: "Date" }, { key: "fournisseur", label: "Fournisseur" }, { key: "facture", label: "Facture" }, { key: "montant", label: "Montant" }],
       rows: db.payments
-        .filter((p) => p.date >= from && p.date <= to)
+        .filter((p) => {
+          if (p.date < from || p.date > to) return false;
+          if (!p.invoiceId) return false;
+          const inv = db.invoices.find((i) => i.id === p.invoiceId);
+          return inv ? siteIds.includes(inv.siteId) : false;
+        })
         .map((p) => ({
           num: p.number, date: p.date,
           fournisseur: db.suppliers.find((s) => s.id === p.supplierId)?.name ?? "",
