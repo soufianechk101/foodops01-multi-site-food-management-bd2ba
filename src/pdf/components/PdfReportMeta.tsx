@@ -1,11 +1,11 @@
-import React from "react";
+import React from 'react';
 
 export function PdfReportMeta({
   items,
 }: {
   items: { label: string; value: string }[];
 }) {
-  const validItems = items.filter((i) => i.value && i.value.trim() !== "");
+  const validItems = items.filter((i) => i.value && i.value.trim() !== '');
   if (validItems.length === 0) return null;
 
   return (

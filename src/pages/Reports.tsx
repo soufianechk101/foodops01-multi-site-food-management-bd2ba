@@ -29,7 +29,7 @@ import {
 import type { DB } from "../types";
 
 // استيراد محرك الطباعة الجديد والقوالب
-import { usePdfPrint } from '../pdf/PdfPrintManager';
+import { usePdfPrint } from '../pdf/components/PdfPrintManager';
 import { ReportPdf, type ReportPdfModel } from '../pdf/templates/ReportPdf';
 
 interface Ctx {

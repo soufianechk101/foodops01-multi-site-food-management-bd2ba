@@ -1,9 +1,9 @@
-import React from "react";
+import React from 'react';
 
 export interface PdfTableColumn<T = any> {
   key: string;
   label: string;
-  align?: "left" | "right" | "center";
+  align?: 'left' | 'right' | 'center';
   width?: string;
   render?: (row: T) => React.ReactNode;
 }
@@ -34,7 +34,7 @@ export function PdfTable<T = any>({
               <th
                 key={col.key}
                 className={`px-3 py-2.5 font-bold uppercase tracking-wider border-b-2 border-gray-300 ${
-                  col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                  col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
                 }`}
                 style={col.width ? { width: col.width } : undefined}
               >
@@ -45,16 +45,12 @@ export function PdfTable<T = any>({
         </thead>
         <tbody className="bg-white">
           {rows.map((row, idx) => (
-            <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50/70"}>
+            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/70'}>
               {columns.map((col) => (
                 <td
                   key={col.key}
                   className={`px-3 py-2 border-b border-gray-200 break-words ${
-                    col.align === "right" 
-                      ? "text-right font-mono whitespace-nowrap" 
-                      : col.align === "center" 
-                      ? "text-center" 
-                      : "text-left"
+                    col.align === 'right' ? 'text-right font-mono whitespace-nowrap' : col.align === 'center' ? 'text-center' : 'text-left'
                   }`}
                 >
                   {col.render ? col.render(row) : (row as any)[col.key]}

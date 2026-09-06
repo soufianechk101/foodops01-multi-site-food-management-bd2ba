@@ -5,7 +5,7 @@ import { Login } from "./pages/Login";
 import { EmptyState } from "./components/ui";
 import { Lock } from "lucide-react";
 import type { RefTab } from "./pages/Referentiel";
-import { PdfPrintProvider } from './pdf/PdfPrintManager';
+import { PdfPrintProvider } from './pdf/components/PdfPrintManager';
 
 /* Chargement paresseux (code-splitting) : chaque page devient un morceau
    séparé, chargé uniquement quand l'utilisateur y accède. */

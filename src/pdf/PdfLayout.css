@@ -1,0 +1,293 @@
+/* ===========================================
+   FoodOps — PDF Print Styles
+   Single source of truth for all PDF print styles.
+   ============================================ */
+
+/* Cacher le portal PDF en mode écran normal pour éviter le flash */
+#foodops-pdf-portal {
+  display: none;
+  position: absolute;
+  left: -9999px;
+  top: 0;
+}
+
+/* ============================================
+   PRINT MEDIA QUERIES
+   ============================================ */
+@media print {
+  /* @page à 0 supprime header/footer navigateur (localhost, date, titre) */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  /* Réinitialisation complète du body et html pour l'impression */
+  html, body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Masquer l'application principale (#root) — et tout autre enfant de body sauf le portal */
+  #root, body > *:not(#foodops-pdf-portal) {
+    display: none !important;
+  }
+
+  /* Afficher UNIQUEMENT le portal PDF — avec marges A4 via padding (pas @page) pour cacher localhost */
+  #foodops-pdf-portal {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 9mm 8mm 10mm 8mm !important;
+    box-sizing: border-box !important;
+    background: white !important;
+    color: #1a2620 !important;
+    font-family: "Public Sans", system-ui, sans-serif !important;
+    font-size: 10pt !important;
+    line-height: 1.4 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* ============================================
+     PDF DOCUMENT - Reset complet du conteneur
+     ============================================ */
+  .pdf-document {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: #1a2620 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* ============================================
+     TABLE STYLES - Pagination correcte et professionnelle
+     ============================================ */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+    font-size: 9pt !important;
+    margin: 0 !important;
+  }
+
+  /* Répéter l'en-tête du tableau sur chaque nouvelle page */
+  thead {
+    display: table-header-group !important;
+  }
+
+  /* Répéter le pied du tableau si nécessaire */
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* Empêcher les lignes de se couper verticalement entre deux pages */
+  tbody tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  td, th {
+    padding: 6px 8px !important;
+    border: 1px solid #d1d5db !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    vertical-align: top !important;
+  }
+
+  th {
+    background-color: #f3f4f6 !important;
+    font-weight: 600 !important;
+    text-align: left !important;
+  }
+  /* En-tête pine des documents PDF : garder fond sombre + texte blanc lisible à l'impression */
+  .pdf-document thead tr { background-color: #102e24 !important; }
+  .pdf-document thead th {
+    background-color: #102e24 !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ============================================
+     SECTIONS PDF - Éviter les coupures malheureuses
+     ============================================ */
+  .pdf-header,
+  .pdf-footer,
+  .pdf-meta,
+  .pdf-kpi-grid,
+  .pdf-section,
+  .pdf-signatures,
+  .pdf-empty-state {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* ============================================
+     TYPOGRAPHY
+     ============================================ */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    orphans: 3 !important;
+    widows: 3 !important;
+  }
+
+  p {
+    orphans: 2 !important;
+    widows: 2 !important;
+  }
+
+  /* ============================================
+     UTILITAIRES
+     ============================================ */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Forcer l'affichage des couleurs de fond et des bordures uniquement dans le portal */
+  #foodops-pdf-portal, #foodops-pdf-portal * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+
+/* ============================================
+   SCREEN-ONLY CONTENT (hidden in PDF)
+   ============================================ */
+@media screen {
+  .screen-only {
+    display: block;
+  }
+}
+@media print {
+  .screen-only {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   ROOT CONTAINER STYLES
+   ============================================ */
+.pdf-root {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background: white;
+  color: #1a2620;
+  font-family: "Public Sans", system-ui, sans-serif;
+}
+
+.pdf-root.pdf-landscape {
+  /* Landscape-specific adjustments handled by @page */
+}
+
+/* ============================================
+   PDF HEADER
+   ============================================ */
+.pdf-header {
+  border-bottom: 2px solid #1b503b;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ============================================
+   PDF FOOTER
+   ============================================ */
+.pdf-footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.75rem;
+  color: #7c8c81;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ============================================
+   PDF META
+   ============================================ */
+.pdf-meta {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+}
+
+/* ============================================
+   PDF KPI GRID
+   ============================================ */
+.pdf-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .pdf-kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ============================================
+   PDF TABLE
+   ============================================ */
+.pdf-table-container {
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  margin: 1.5rem 0;
+  background: white;
+}
+
+/* ============================================
+   PDF SECTION
+   ============================================ */
+.pdf-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+}
+
+/* ============================================
+   PDF SIGNATURES
+   ============================================ */
+.pdf-signatures {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  font-size: 0.875rem;
+}
+
+/* ============================================
+   PDF EMPTY STATE
+   ============================================ */
+.pdf-empty-state {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  border: 1px dashed #d1d5db;
+  border-radius: 0.25rem;
+  background: #f9fafb;
+}

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Logo } from "../components/Logo";
 import { Eye, FileText, Pencil, Plus, Truck, Wallet, X, Printer } from "lucide-react";
 import { useApp, useUserId } from "../state/AppContext";
-import { usePdfPrint } from '../pdf/PdfPrintManager';
+import { usePdfPrint } from '../pdf/components/PdfPrintManager';
 import { PurchaseOrderPdf, type PurchaseOrderPdfModel } from '../pdf/templates/PurchaseOrderPdf';
 import { ReceptionPdf, type ReceptionPdfModel } from '../pdf/templates/ReceptionPdf';
 import {
