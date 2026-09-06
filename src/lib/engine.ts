@@ -44,7 +44,8 @@ export function computeStocks(
   opts?: { siteId?: ID | null; productId?: ID | null; uptoDate?: string }
 ): Map<string, StockEntry> {
   const map = new Map<string, StockEntry>();
-  for (const m of db.movements) {
+  const sorted = [...db.movements].sort((a, b) => a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.seq - b.seq);
+  for (const m of sorted) {
     if (opts?.siteId && m.siteId !== opts.siteId) continue;
     if (opts?.productId && m.productId !== opts.productId) continue;
     if (opts?.uptoDate && m.date > opts.uptoDate) continue;
@@ -75,7 +76,8 @@ export type HistoryRow = { mov: StockMovement; balance: number };
 export function productHistory(db: DB, siteId: ID, productId: ID): HistoryRow[] {
   const rows: HistoryRow[] = [];
   let balance = 0;
-  for (const m of db.movements) {
+  const sorted = [...db.movements].sort((a, b) => a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.seq - b.seq);
+  for (const m of sorted) {
     if (m.siteId !== siteId || m.productId !== productId) continue;
     balance += m.qty;
     rows.push({ mov: m, balance });
@@ -204,6 +206,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'sales.view', 'sales.create',
     'reports.view', 'reports.export',
     'settings.view',
+    'supplier_returns.view', 'supplier_returns.create', 'supplier_returns.validate', 'supplier_returns.cancel',
   ],
   econome: [
     'dashboard.view', 'products.view',
@@ -216,6 +219,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'inventory.view', 'inventory.create',
     'sales.view', 'sales.create',
     'reports.view',
+    'supplier_returns.view', 'supplier_returns.create', 'supplier_returns.validate', 'supplier_returns.cancel',
   ],
   controleur: [
     'dashboard.view', 'products.view', 'suppliers.view',
@@ -997,7 +1001,7 @@ export function validateSupplierReturn(db: DB, id: ID, userId: ID): SupplierRetu
   const ret = db.supplierReturns.find((x) => x.id === id);
   if (!ret) throw new Error("Retour introuvable.");
   checkSiteAccess(db, userId, ret.siteId);
-  requirePermission(db, userId, 'receptions.cancel'); 
+  requirePermission(db, userId, 'supplier_returns.validate'); 
   if (ret.status !== "brouillon")
     throw new Error(ret.status === "valide" ? "Ce retour est déjà validé." : "Ce retour est annulé.");
 
@@ -1049,7 +1053,7 @@ export function cancelSupplierReturn(db: DB, id: ID, userId: ID): void {
   const ret = db.supplierReturns.find((x) => x.id === id);
   if (!ret) throw new Error("Retour introuvable.");
   checkSiteAccess(db, userId, ret.siteId);
-  requirePermission(db, userId, 'receptions.cancel');
+  requirePermission(db, userId, 'supplier_returns.cancel');
   if (ret.status !== "valide") throw new Error("Seul un retour validé peut être annulé.");
 
   // Contre-passation exacte basée sur les mouvements originaux

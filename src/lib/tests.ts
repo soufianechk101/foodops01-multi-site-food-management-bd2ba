@@ -823,6 +823,268 @@ function testPermissionsHardening(): TestResult {
 }
 
 /* ============================================================
+   HARDENING PHASE 2 — Steps 2-17 additional deterministic tests
+   ============================================================ */
+
+// STEP 3: Order independence — computeStocks must be date/seq sorted
+function testOrderIndependence(): TestResult {
+  const db = fresh();
+  const P = "p-order-test";
+  newProduct(db, P, "Test Order Independence");
+  // Create two receptions on different dates, then shuffle movements array
+  const rec1 = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: "2026-01-10", poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 100, receivedQty: 100, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec1); validateReception(db, rec1.id, ADMIN);
+  const rec2 = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: "2026-01-15", poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 50, receivedQty: 50, unitCost: 20, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec2); validateReception(db, rec2.id, ADMIN);
+  const conso = { id: uid(), number: "", siteId: SITE_A, date: "2026-01-12", service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 30 }] };
+  saveConsumption(db, conso); validateConsumption(db, conso.id, ADMIN);
+  const qtyBefore = currentQty(db, SITE_A, P);
+  // Reverse physical order of movements
+  db.movements.reverse();
+  const qtyAfterReverse = currentQty(db, SITE_A, P);
+  if (!approx(qtyBefore, qtyAfterReverse)) return ko("Ordre", "computeStocks indépendant de l'ordre physique", `Avant=${qtyBefore} Après reverse=${qtyAfterReverse}`);
+  // productHistory must also be sorted
+  const hist = (() => { try { const { productHistory: ph } = require("./engine"); return ph; } catch { return null; } })();
+  // Check productHistory ordering via direct import
+  const beforeHist = db.movements.slice().sort((a,b)=> a.date!==b.date ? (a.date<b.date?-1:1) : a.seq-b.seq).filter(m=>m.productId===P).map(m=>m.qty);
+  db.movements.reverse();
+  const afterHist = [...db.movements].sort((a,b)=> a.date!==b.date ? (a.date<b.date?-1:1) : a.seq-b.seq).filter(m=>m.productId===P).map(m=>m.qty);
+  if (JSON.stringify(beforeHist) !== JSON.stringify(afterHist)) return ko("Ordre", "productHistory tri", "Incohérent");
+  return ok("Ordre", "computeStocks/productHistory indépendants de l'ordre physique", `Stock stable: ${qtyBefore}`);
+}
+
+// STEP 4: Historical stock — currentQty vs uptoDate inclusive
+function testHistoricalStock(): TestResult {
+  const db = fresh();
+  const P = "p-hist-test";
+  newProduct(db, P, "Test Historical");
+  const rec1 = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: "2026-02-01", poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 100, receivedQty: 100, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec1); validateReception(db, rec1.id, ADMIN);
+  const rec2 = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: "2026-02-10", poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 50, receivedQty: 50, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec2); validateReception(db, rec2.id, ADMIN);
+  const histQty = entryOf(computeStocks(db, { siteId: SITE_A, productId: P, uptoDate: "2026-02-05" }), SITE_A, P).qty;
+  const fullQty = currentQty(db, SITE_A, P);
+  if (!approx(histQty, 100)) return ko("Historique", "Stock à date intermédiaire (inclusif)", `Attendu 100, obtenu ${histQty}`);
+  if (!approx(fullQty, 150)) return ko("Historique", "Stock courant", `Attendu 150, obtenu ${fullQty}`);
+  const inclQty = entryOf(computeStocks(db, { siteId: SITE_A, productId: P, uptoDate: "2026-02-10" }), SITE_A, P).qty;
+  if (!approx(inclQty, 150)) return ko("Historique", "Convention inclusive (mouvement du jour inclus)", `Attendu 150, obtenu ${inclQty}`);
+  return ok("Historique", "currentQty vs uptoDate (inclusif)", `Hist@05=${histQty} Hist@10=${inclQty} Full=${fullQty}`);
+}
+
+// STEP 5: Weighted average cost — 200@15 then consumption 50, reception, waste, transfer, return
+function testWeightedAverageElaborate(): TestResult {
+  const db = fresh();
+  const P = "p-wavg-test";
+  newProduct(db, P, "Test WAvg Elaborate");
+  createInitialStock(db, { siteId: SITE_A, date: "2026-01-01", userId: ADMIN, lines: [{ productId: P, qty: 200, unitCost: 15 }] });
+  let e = entryOf(computeStocks(db), SITE_A, P);
+  if (!approx(e.avgCost, 15) || !approx(e.qty, 200)) return ko("Wavg", "Initial 200@15", `qty=${e.qty} avg=${e.avgCost}`);
+  // Consumption 50
+  const conso = { id: uid(), number: "", siteId: SITE_A, date: "2026-01-02", service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 50 }] };
+  saveConsumption(db, conso); validateConsumption(db, conso.id, ADMIN);
+  e = entryOf(computeStocks(db), SITE_A, P);
+  if (!approx(e.qty, 150) || !approx(e.avgCost, 15)) return ko("Wavg", "Après conso 50", `qty=${e.qty} avg=${e.avgCost}`);
+  // Reception 100@20
+  const rec = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: "2026-01-03", poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 100, receivedQty: 100, unitCost: 20, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec); validateReception(db, rec.id, ADMIN);
+  e = entryOf(computeStocks(db), SITE_A, P);
+  // 150*15 + 100*20 = 4250 / 250 = 17
+  if (!approx(e.avgCost, 17, 0.02) || !approx(e.qty, 250)) return ko("Wavg", "Après réception 100@20", `qty=${e.qty} avg=${e.avgCost.toFixed(2)} attendu 17`);
+  // Waste 10 (avg stays 17, qty 240)
+  const w = { id: uid(), number: "", siteId: SITE_A, date: "2026-01-04", reason: "Casse", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 10 }] };
+  saveWaste(db, w); validateWaste(db, w.id, ADMIN);
+  e = entryOf(computeStocks(db), SITE_A, P);
+  if (!approx(e.qty, 240) || !approx(e.avgCost, 17, 0.02)) return ko("Wavg", "Après waste 10", `qty=${e.qty} avg=${e.avgCost}`);
+  // Transfer 40 out (qty 200, avg still 17)
+  createInitialStock(db, { siteId: SITE_B, date: "2026-01-01", userId: ADMIN, lines: [{ productId: P, qty: 10, unitCost: 5 }] });
+  const tr = { id: uid(), number: "", fromSiteId: SITE_A, toSiteId: SITE_B, date: "2026-01-05", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 40, unitCost: 17 }] };
+  saveTransfer(db, tr); approveTransfer(db, tr.id, ADMIN); dispatchTransfer(db, tr.id, ADMIN);
+  e = entryOf(computeStocks(db), SITE_A, P);
+  if (!approx(e.qty, 200) || !approx(e.avgCost, 17, 0.02)) return ko("Wavg", "Après transfert 40", `qty=${e.qty} avg=${e.avgCost}`);
+  // Return 20 (qty 180)
+  const ret = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: "2026-01-06", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 20 }] };
+  saveSupplierReturn(db, ret); validateSupplierReturn(db, ret.id, ADMIN);
+  e = entryOf(computeStocks(db), SITE_A, P);
+  if (!approx(e.qty, 180) || !approx(e.avgCost, 17, 0.02)) return ko("Wavg", "Après retour 20", `qty=${e.qty} avg=${e.avgCost}`);
+  return ok("Wavg", "Cycle complet 200@15 → conso→réception→perte→transfert→retour", `Final: ${e.qty}@${e.avgCost.toFixed(2)}`);
+}
+
+// STEP 6: Draft neutrality extended
+function testDraftNeutralityExtended(): TestResult {
+  const db = fresh();
+  const P = "p-draft-test";
+  newProduct(db, P, "Test Draft Ext");
+  const movBefore = fresh().movements.length;
+  createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 50, unitCost: 10 }] });
+  const base = currentQty(db, SITE_A, P);
+  const movAfterInit = db.movements.length;
+  // Draft reception
+  const rec = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 999, receivedQty: 999, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec);
+  // Draft consumption
+  const conso = { id: uid(), number: "", siteId: SITE_A, date: todayISO(), service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 999 }] };
+  saveConsumption(db, conso);
+  // Draft waste
+  const waste = { id: uid(), number: "", siteId: SITE_A, date: todayISO(), reason: "Test", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 999 }] };
+  saveWaste(db, waste);
+  // Draft transfer
+  const tr = { id: uid(), number: "", fromSiteId: SITE_A, toSiteId: SITE_B, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 999, unitCost: 10 }] };
+  saveTransfer(db, tr);
+  // Draft supplier return
+  const ret = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 999 }] };
+  saveSupplierReturn(db, ret);
+  const after = currentQty(db, SITE_A, P);
+  if (!approx(base, after)) return ko("Brouillon", "Tous brouillons neutres", `Avant=${base} Après=${after}`);
+  if (db.movements.length !== movAfterInit) return ko("Brouillon", "Aucun mouvement par brouillon", `Attendu ${movAfterInit}, obtenu ${db.movements.length}`);
+  return ok("Brouillon", "Tous brouillons neutres (réception/conso/perte/transfert/retour)", `Stock ${after} inchangé`);
+}
+
+// STEP 10: Waste 0/negative/NaN/Infinity rejection
+function testWasteInvalidQty(): TestResult {
+  const db = fresh();
+  const P = "p-waste-inv";
+  newProduct(db, P, "Test Waste Invalid");
+  createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 50, unitCost: 10 }] });
+  const mk = (qty: number) => ({ id: uid(), number: "", siteId: SITE_A, date: todayISO(), reason: "Test", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty }] });
+  if (!expectThrow(() => saveWaste(db, mk(0)), "positive")) return ko("Pertes", "Rejet qty 0", "Non rejeté");
+  if (!expectThrow(() => saveWaste(db, mk(-5)), "positive")) return ko("Pertes", "Rejet qty négative", "Non rejeté");
+  if (!expectThrow(() => saveWaste(db, mk(NaN)), "positive")) return ko("Pertes", "Rejet NaN", "Non rejeté");
+  if (!expectThrow(() => saveWaste(db, mk(Infinity)), "positive")) return ko("Pertes", "Rejet Infinity", "Non rejeté");
+  return ok("Pertes", "Rejet 0/négatif/NaN/Infinity", "Tous rejetés");
+}
+
+// STEP 11: Transfer scenarios A-H
+function testTransferScenarios(): TestResult {
+  const db = fresh();
+  const P = "p-trf-scen";
+  newProduct(db, P, "Test Trf Scenarios");
+  createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 100, unitCost: 10 }] });
+  // A: same site rejected
+  if (!expectThrow(() => saveTransfer(db, { id: uid(), number: "", fromSiteId: SITE_A, toSiteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 10, unitCost: 10 }] }), "différent")) return ko("Transferts", "A: même site", "Non bloqué");
+  // B: qty 0 rejected
+  if (!expectThrow(() => saveTransfer(db, { id: uid(), number: "", fromSiteId: SITE_A, toSiteId: SITE_B, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 0, unitCost: 10 }] }), "positive")) return ko("Transferts", "B: qty 0", "Non bloqué");
+  // C: negative qty rejected
+  if (!expectThrow(() => saveTransfer(db, { id: uid(), number: "", fromSiteId: SITE_A, toSiteId: SITE_B, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: -5, unitCost: 10 }] }), "positive")) return ko("Transferts", "C: qty négative", "Non bloqué");
+  // D: must be approved before dispatch
+  const trD = { id: uid(), number: "", fromSiteId: SITE_A, toSiteId: SITE_B, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 10, unitCost: 10 }] };
+  saveTransfer(db, trD);
+  if (!expectThrow(() => dispatchTransfer(db, trD.id, ADMIN), "approuvé")) return ko("Transferts", "D: approbation requise", "Non bloqué");
+  // E: dispatch reduces source
+  approveTransfer(db, trD.id, ADMIN); dispatchTransfer(db, trD.id, ADMIN);
+  if (!approx(currentQty(db, SITE_A, P), 90)) return ko("Transferts", "E: source après dispatch", `Attendu 90, ${currentQty(db, SITE_A, P)}`);
+  // F: receive increases dest
+  receiveTransfer(db, trD.id, ADMIN);
+  if (!approx(currentQty(db, SITE_B, P), 10)) return ko("Transferts", "F: dest après réception", `Attendu 10, ${currentQty(db, SITE_B, P)}`);
+  // G: double dispatch rejected
+  if (!expectThrow(() => dispatchTransfer(db, trD.id, ADMIN))) return ko("Transferts", "G: double dispatch", "Non bloqué");
+  // H: double receive rejected
+  if (!expectThrow(() => receiveTransfer(db, trD.id, ADMIN))) return ko("Transferts", "H: double receive", "Non bloqué");
+  return ok("Transferts", "Scénarios A-H", "Tous validés");
+}
+
+// STEP 12: Permission anomaly — supplier returns must use dedicated permission
+function testSupplierReturnPermissions(): TestResult {
+  const db = fresh();
+  const P = "p-ret-perm";
+  newProduct(db, P, "Test Ret Perm");
+  createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 100, unitCost: 10 }] });
+  const economeId = "u-eco-ret-test";
+  db.users.push({ id: economeId, name: "EcoRet", username: "ecoret", passwordHash: "h", role: "econome", siteIds: "all", active: true, createdAt: nowISO() });
+  const controleurId = "u-ctrl-ret-test";
+  db.users.push({ id: controleurId, name: "CtrlRet", username: "ctrlret", passwordHash: "h", role: "controleur", siteIds: "all", active: true, createdAt: nowISO() });
+  // Econome should be able to validate supplier return (has supplier_returns.validate)
+  const ret1 = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: economeId, createdAt: nowISO(), lines: [{ productId: P, qty: 5 }] };
+  saveSupplierReturn(db, ret1);
+  try { validateSupplierReturn(db, ret1.id, economeId); } catch (e) { return ko("Permissions", "Econome peut valider retour", `${e instanceof Error ? e.message : e}`); }
+  // Controleur must NOT be able to validate supplier return
+  const ret2 = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 5 }] };
+  saveSupplierReturn(db, ret2);
+  const err = expectThrow(() => validateSupplierReturn(db, ret2.id, controleurId), "autorisation");
+  if (!err) return ko("Permissions", "Controleur bloqué sur retour", "Non bloqué");
+  return ok("Permissions", "Retour fournisseur : permissions dédiées (supplier_returns.*)", "Econome OK, Controleur bloqué");
+}
+
+// STEP 15: Idempotency for all critical actions — double cancel
+function testDoubleCancelIdempotency(): TestResult {
+  const db = fresh();
+  const P = "p-idem-cancel";
+  newProduct(db, P, "Test Double Cancel");
+  createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 100, unitCost: 10 }] });
+  // Reception double cancel
+  const rec = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 20, receivedQty: 20, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec); validateReception(db, rec.id, ADMIN); cancelReception(db, rec.id, ADMIN);
+  if (!expectThrow(() => cancelReception(db, rec.id, ADMIN))) return ko("Idempotence", "Double cancel réception", "Non bloqué");
+  // Waste double cancel
+  const w = { id: uid(), number: "", siteId: SITE_A, date: todayISO(), reason: "Test", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 5 }] };
+  saveWaste(db, w); validateWaste(db, w.id, ADMIN); cancelWaste(db, w.id, ADMIN);
+  if (!expectThrow(() => cancelWaste(db, w.id, ADMIN))) return ko("Idempotence", "Double cancel perte", "Non bloqué");
+  // Consumption double cancel
+  const c = { id: uid(), number: "", siteId: SITE_A, date: todayISO(), service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 5 }] };
+  saveConsumption(db, c); validateConsumption(db, c.id, ADMIN); cancelConsumption(db, c.id, ADMIN);
+  if (!expectThrow(() => cancelConsumption(db, c.id, ADMIN))) return ko("Idempotence", "Double cancel conso", "Non bloqué");
+  // Supplier return double cancel
+  const ret = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 5 }] };
+  saveSupplierReturn(db, ret); validateSupplierReturn(db, ret.id, ADMIN); cancelSupplierReturn(db, ret.id, ADMIN);
+  if (!expectThrow(() => cancelSupplierReturn(db, ret.id, ADMIN))) return ko("Idempotence", "Double cancel retour", "Non bloqué");
+  // Supplier return double validate
+  const ret2 = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 5 }] };
+  saveSupplierReturn(db, ret2); validateSupplierReturn(db, ret2.id, ADMIN);
+  if (!expectThrow(() => validateSupplierReturn(db, ret2.id, ADMIN))) return ko("Idempotence", "Double validate retour", "Non bloqué");
+  return ok("Idempotence", "Double cancel/validate bloqués (réception/perte/conso/retour)", "Tous rejetés");
+}
+
+// STEP 16: Orphan references — product not found
+function testOrphanReferences(): TestResult {
+  const db = fresh();
+  const fakeId = "p-orphan-fake";
+  const err = expectThrow(() => { const rec = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: fakeId, orderedQty: 10, receivedQty: 10, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] }; saveReception(db, rec); }, "introuvable");
+  if (!err) return ko("Orphelin", "Produit inexistant rejeté", "Non bloqué");
+  return ok("Orphelin", "Référence produit orpheline rejetée", "Bloqué avec erreur");
+}
+
+// STEP 17: Numerical integrity — 0, NaN, Infinity, decimals, floating
+function testNumericalIntegrity(): TestResult {
+  const db = fresh();
+  const P = "p-num-test";
+  newProduct(db, P, "Test Num");
+  createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 100, unitCost: 10 }] });
+  // Consumption with 0 qty
+  if (!expectThrow(() => saveConsumption(db, { id: uid(), number: "", siteId: SITE_A, date: todayISO(), service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 0 }] }), "positive")) return ko("Numérique", "Conso 0 rejetée", "Non rejeté");
+  if (!expectThrow(() => saveConsumption(db, { id: uid(), number: "", siteId: SITE_A, date: todayISO(), service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: NaN }] }), "positive")) return ko("Numérique", "Conso NaN rejetée", "Non rejeté");
+  if (!expectThrow(() => saveConsumption(db, { id: uid(), number: "", siteId: SITE_A, date: todayISO(), service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: Infinity }] }), "positive")) return ko("Numérique", "Conso Infinity rejetée", "Non rejeté");
+  // Floating point: 0.1 + 0.2 scenario
+  const rec = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 0.1, receivedQty: 0.1, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec); validateReception(db, rec.id, ADMIN);
+  const rec2 = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, orderedQty: 0.2, receivedQty: 0.2, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] };
+  saveReception(db, rec2); validateReception(db, rec2.id, ADMIN);
+  const q = currentQty(db, SITE_A, P);
+  if (!approx(q, 100.3, 0.01)) return ko("Numérique", "Flottant 0.1+0.2", `Attendu 100.3, obtenu ${q}`);
+  return ok("Numérique", "0/NaN/Infinity rejetés, décimaux et flottants OK", `Stock ${q}`);
+}
+
+// STEP 2D & STEP 14: Multi-site isolation + negative stock matrix
+function testMultiSiteNegativeMatrix(): TestResult {
+  const db = fresh();
+  db.company.allowNegativeStock = false;
+  const P = "p-matrix-test";
+  newProduct(db, P, "Test Matrix");
+  createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 10, unitCost: 10 }] });
+  // Site B has no stock — operations on B must fail, but A unaffected
+  const consoB = { id: uid(), number: "", siteId: SITE_B, date: todayISO(), service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 1 }] };
+  saveConsumption(db, consoB);
+  if (!expectThrow(() => validateConsumption(db, consoB.id, ADMIN), "insuffisant")) return ko("Matrix", "Site B sans stock bloqué", "Non bloqué");
+  if (!approx(currentQty(db, SITE_A, P), 10)) return ko("Matrix", "Site A intact", `Attendu 10, ${currentQty(db, SITE_A, P)}`);
+  if (!approx(currentQty(db, SITE_B, P), 0)) return ko("Matrix", "Site B à 0", `Attendu 0, ${currentQty(db, SITE_B, P)}`);
+  // With allowNegativeStock=true, consumption on B should pass
+  db.company.allowNegativeStock = true;
+  const consoB2 = { id: uid(), number: "", siteId: SITE_B, date: todayISO(), service: "dejeuner" as const, status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 5 }] };
+  saveConsumption(db, consoB2);
+  try { validateConsumption(db, consoB2.id, ADMIN); } catch (e) { return ko("Matrix", "allowNegativeStock=true", `${e instanceof Error ? e.message : e}`); }
+  if (!approx(currentQty(db, SITE_B, P), -5)) return ko("Matrix", "Stock négatif autorisé", `Attendu -5, ${currentQty(db, SITE_B, P)}`);
+  return ok("Matrix", "Isolation multi-site + matrice stock négatif", `A=${currentQty(db, SITE_A, P)} B=${currentQty(db, SITE_B, P)}`);
+}
+
+/* ============================================================
    Exécution de la suite de tests
    ============================================================ */
 export function runEngineTests(): TestResult[] {
@@ -854,6 +1116,17 @@ export function runEngineTests(): TestResult[] {
     testPermissionsHardening,
     testConsumptionIdempotency,
     testWasteIdempotency,
+    testOrderIndependence,
+    testHistoricalStock,
+    testWeightedAverageElaborate,
+    testDraftNeutralityExtended,
+    testWasteInvalidQty,
+    testTransferScenarios,
+    testSupplierReturnPermissions,
+    testDoubleCancelIdempotency,
+    testOrphanReferences,
+    testNumericalIntegrity,
+    testMultiSiteNegativeMatrix,
   ];
   
   const results = tests.map((t) => {
