@@ -292,6 +292,7 @@ export function createInitialStock(
 
 export function saveReception(db: DB, rec: Reception): void {
   checkSiteAccess(db, rec.userId, rec.siteId);
+  requirePermission(db, rec.userId, 'receptions.create');
   if (rec.status !== "brouillon") throw new Error("Seul un brouillon peut être modifié.");
   if (!rec.supplierId) throw new Error("Sélectionnez un fournisseur.");
   if (!rec.lines.length) throw new Error("Ajoutez au moins une ligne.");
@@ -406,6 +407,7 @@ export function cancelReception(db: DB, id: ID, userId: ID): void {
 
 export function savePO(db: DB, po: PurchaseOrder): void {
   checkSiteAccess(db, po.userId, po.siteId);
+  requirePermission(db, po.userId, 'purchases.create');
   if (po.status !== "brouillon" && po.status !== "soumis") throw new Error("Ce bon de commande ne peut plus être modifié.");
   if (!po.supplierId) throw new Error("Sélectionnez un fournisseur.");
   if (!po.lines.length) throw new Error("Ajoutez au moins une ligne.");
@@ -434,6 +436,8 @@ export function setPOStatus(db: DB, id: ID, status: POStatus, userId: ID): void 
   const po = db.purchaseOrders.find((x) => x.id === id);
   if (!po) throw new Error("Bon de commande introuvable.");
   checkSiteAccess(db, userId, po.siteId);
+  if (status === "approuve") requirePermission(db, userId, 'purchases.approve');
+  else requirePermission(db, userId, 'purchases.create');
   if (status === "annule" && (po.status === "partiel" || po.status === "recu"))
     throw new Error("Impossible d'annuler un bon déjà partiellement ou totalement reçu.");
   if (status === "approuve" && po.status !== "soumis")
@@ -489,6 +493,7 @@ export function receptionFromPO(db: DB, poId: ID, userId: ID): Reception {
 export function saveTransfer(db: DB, t: Transfer): void {
   checkSiteAccess(db, t.userId, t.fromSiteId);
   checkSiteAccess(db, t.userId, t.toSiteId);
+  requirePermission(db, t.userId, 'stock.transfer');
   if (t.fromSiteId === t.toSiteId) throw new Error("Le site source et le site destination doivent être différents.");
   if (t.status !== "brouillon") throw new Error("Ce transfert ne peut plus être modifié.");
   if (!t.lines.length) throw new Error("Ajoutez au moins une ligne.");
@@ -586,6 +591,8 @@ export function receiveTransfer(db: DB, id: ID, userId: ID): void {
 export function approveTransfer(db: DB, id: ID, userId: ID): void {
   const t = db.transfers.find((x) => x.id === id);
   if (!t) throw new Error("Transfert introuvable.");
+  checkSiteAccess(db, userId, t.fromSiteId);
+  requirePermission(db, userId, 'stock.transfer');
   if (t.status !== "brouillon") throw new Error("Seul un brouillon peut être approuvé.");
   t.status = "approuve";
   pushAudit(db, {
@@ -634,6 +641,7 @@ export function cancelTransfer(db: DB, id: ID, userId: ID): void {
 
 export function saveConsumption(db: DB, c: Consumption): void {
   checkSiteAccess(db, c.userId, c.siteId);
+  requirePermission(db, c.userId, 'consumption.create');
   if (c.status !== "brouillon") throw new Error("Cette consommation ne peut plus être modifiée.");
   if (!c.lines.length) throw new Error("Ajoutez au moins une ligne.");
   for (const l of c.lines) {
@@ -726,6 +734,7 @@ export function cancelConsumption(db: DB, id: ID, userId: ID): void {
 
 export function saveWaste(db: DB, w: Waste): void {
   checkSiteAccess(db, w.userId, w.siteId);
+  requirePermission(db, w.userId, 'waste.create');
   if (w.status !== "brouillon") throw new Error("Cette perte ne peut plus être modifiée.");
   if (!w.reason) throw new Error("Précisez le motif de la perte.");
   if (!w.lines.length) throw new Error("Ajoutez au moins une ligne.");
@@ -832,6 +841,7 @@ export function createInventory(
   args: { siteId: ID; date: string; userId: ID; categoryId?: ID | null; notes?: string }
 ): InventoryDoc {
   checkSiteAccess(db, args.userId, args.siteId);
+  requirePermission(db, args.userId, 'inventory.create');
   if (db.inventories.some((i) => i.siteId === args.siteId && i.status === "en_cours"))
     throw new Error("Un inventaire est déjà en cours sur ce site. Validez-le ou annulez-le d'abord.");
   const stocks = computeStocks(db, { siteId: args.siteId });
@@ -973,6 +983,7 @@ export function cancelInventory(db: DB, id: ID, userId: ID): void {
 export function saveSupplierReturn(db: DB, ret: SupplierReturn): void {
   if (!db.supplierReturns) db.supplierReturns = [];
   checkSiteAccess(db, ret.userId, ret.siteId);
+  requirePermission(db, ret.userId, 'supplier_returns.create');
   if (ret.status !== "brouillon") throw new Error("Seul un brouillon peut être modifié.");
   if (!ret.supplierId) throw new Error("Sélectionnez un fournisseur.");
   if (!ret.lines.length) throw new Error("Ajoutez au moins une ligne.");
@@ -1102,6 +1113,7 @@ export function invoiceTotals(inv: { lines: { amount: number; vatRate: number }[
 
 export function saveInvoice(db: DB, inv: DB["invoices"][number]): void {
   checkSiteAccess(db, inv.userId, inv.siteId);
+  requirePermission(db, inv.userId, 'purchases.create');
   if (!inv.supplierId) throw new Error("Sélectionnez un fournisseur.");
   if (!inv.lines.length) throw new Error("Ajoutez au moins une ligne de facturation.");
   for (const l of inv.lines) {
@@ -1174,6 +1186,7 @@ export function supplierBalance(db: DB, supplierId: ID): { invoiced: number; pai
 
 export function saveSale(db: DB, sale: DB["sales"][number]): void {
   checkSiteAccess(db, sale.userId, sale.siteId);
+  requirePermission(db, sale.userId, 'sales.create');
   if (!isFinite(sale.revenue) || sale.revenue < 0) throw new Error("Le chiffre d'affaires saisi est invalide.");
   if (sale.covers < 0) throw new Error("Le nombre de couverts est invalide.");
   const existing = db.sales.find((s) => s.siteId === sale.siteId && s.date === sale.date && s.service === sale.service);

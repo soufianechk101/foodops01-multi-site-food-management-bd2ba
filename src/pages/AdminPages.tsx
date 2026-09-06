@@ -580,9 +580,19 @@ export function BackupPage() {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(String(reader.result)) as DB;
+        const raw = String(reader.result);
+        // Parse sécurisé anti-prototype pollution
+        const parsed = JSON.parse(raw, (key, value) => {
+          if (key === "__proto__" || key === "constructor" || key === "prototype") return undefined;
+          return value;
+        }) as DB;
+        // Validation structure via couche centralisée
         if (parsed.version !== 5 || !Array.isArray(parsed.movements) || !Array.isArray(parsed.products) || !parsed.company)
           throw new Error("structure invalide");
+        // Vérification que le prototype n'a pas été pollué
+        if (parsed && typeof parsed === "object" && ("__proto__" in parsed || "constructor" in parsed)) {
+          throw new Error("pollution détectée");
+        }
         setPending(parsed);
       } catch {
         act(() => { throw new Error("Fichier de sauvegarde invalide : la restauration a été refusée pour protéger vos données."); });

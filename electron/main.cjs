@@ -72,9 +72,23 @@ ipcMain.handle("foodops:choose-backup-file", async () => {
 });
 
 ipcMain.handle("foodops:write-backup", async (_evt, payload) => {
-  const file = path.join(dataDir(), payload.name);
-  fs.writeFileSync(file, payload.content, "utf-8");
-  return file;
+  if (!payload || typeof payload.name !== "string" || typeof payload.content !== "string")
+    throw new Error("Payload invalide.");
+  // Sanitize filename: pas de chemin, pas de traversal, extension json obligatoire
+  const raw = payload.name.trim();
+  const safe = path.basename(raw);
+  if (safe !== raw || safe.includes("..") || safe.includes("/") || safe.includes("\\"))
+    throw new Error("Nom de fichier invalide.");
+  if (!safe.toLowerCase().endsWith(".json")) throw new Error("Extension invalide : .json attendu.");
+  if (safe.length > 128) throw new Error("Nom de fichier trop long.");
+  const file = path.join(dataDir(), safe);
+  // Vérification que le fichier reste dans dataDir (anti traversal)
+  const resolved = path.resolve(file);
+  const base = path.resolve(dataDir());
+  if (!resolved.startsWith(base + path.sep) && resolved !== base)
+    throw new Error("Chemin de fichier non autorisé.");
+  fs.writeFileSync(resolved, payload.content, "utf-8");
+  return resolved;
 });
 
 app.whenReady().then(() => {

@@ -123,6 +123,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const userRef = useRef<User | null>(null);
   
   const [siteId, setSiteId] = useState<ID | null>(null);
+  const siteIdRef = useRef<ID | null>(null);
   const [route, setRoute] = useState("dashboard");
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -136,7 +137,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const raw = await localforage.getItem<string>(DB_KEY);
         if (raw) {
-          const parsed = JSON.parse(raw) as DB;
+          // Parse sécurisé: rejet __proto__/constructor/prototype
+          const parsed = JSON.parse(raw, (key, value) => {
+            if (key === "__proto__" || key === "constructor" || key === "prototype") return undefined;
+            return value;
+          }) as DB;
+          // Vérification anti-prototype pollution
+          if (parsed && typeof parsed === "object" && (Object.prototype.hasOwnProperty.call(parsed, "__proto__") || Object.prototype.hasOwnProperty.call(parsed, "constructor"))) {
+            throw new Error("Données corrompues : pollution détectée.");
+          }
           if (parsed.version === 5 && Array.isArray(parsed.movements)) {
             currentDb = parsed;
           } else {
@@ -165,7 +174,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Charger le site
       const storedSite = await localforage.getItem<string>(SITE_KEY);
-      setSiteId(storedSite === "all" ? null : (storedSite as ID | null));
+      const parsedSite = storedSite === "all" ? null : (storedSite as ID | null);
+      setSiteId(parsedSite);
+      siteIdRef.current = parsedSite;
 
       setIsReady(true);
     };
@@ -220,7 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (next: DB) => {
       // 1. Lire la session AVANT remplacement
       const currentUser = userRef.current;
-      const storedSiteId = localStorage.getItem(SITE_KEY);
+      const storedSiteId = siteIdRef.current;
 
       // 2. Retrouver l'utilisateur dans la base restaurée
       let restoredUser: User | null = null;
@@ -230,7 +241,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // 3. Réconcilier le site sélectionné (Logical Sequence)
       let finalSiteId: ID | null = null;
-      if (storedSiteId && storedSiteId !== "all" && restoredUser) {
+      if (storedSiteId && restoredUser) {
         // Site exists & Site active?
         const siteExistsAndActive = next.sites.some((s) => s.id === storedSiteId && s.status === "actif");
         
@@ -245,7 +256,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         // If site doesn't exist or is inactive, finalSiteId remains null.
       }
-      // If storedSiteId was "all" or missing, finalSiteId remains null (Case 1).
+      // If storedSiteId was null (all), finalSiteId remains null (Case 1).
 
       // 4. Remplacer la base (persistance via le mécanisme existant)
       commit(next);
@@ -258,6 +269,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         localforage.setItem(SESSION_KEY, restoredUser.id).catch(console.error);
 
         setSiteId(finalSiteId);
+        siteIdRef.current = finalSiteId;
         localforage.setItem(SITE_KEY, finalSiteId ?? "all").catch(console.error);
 
         toast("Base de données restaurée. Votre session a été conservée.", "success");
@@ -269,6 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUser(null);
         userRef.current = null;
         setSiteId(null);
+        siteIdRef.current = null;
 
         toast("Base restaurée. Votre compte n'existe plus dans cette sauvegarde ou est désactivé : vous avez été déconnecté.", "warn");
       }
@@ -284,6 +297,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setSite = useCallback((id: ID | null) => {
     setSiteId(id);
+    siteIdRef.current = id;
     localforage.setItem(SITE_KEY, id ?? "all").catch(console.error);
   }, []);
 
