@@ -30,6 +30,7 @@ export interface PurchaseOrderPdfModel {
   };
   totalHT: number;
   lines: PurchaseOrderPdfLine[];
+  currency: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -251,7 +252,7 @@ export function PurchaseOrderPdf({ model }: { model: PurchaseOrderPdfModel }) {
               Total HT
             </td>
             <td style={{ padding: '10px 6px', textAlign: 'right', fontSize: '11pt', fontFamily: 'IBM Plex Mono, monospace', color: '#1b503b', fontWeight: 700, borderRight: '1px solid #d1d5db', borderTop: '2px solid #1b503b', borderBottom: '1px solid #d1d5db' }}>
-              {fmtMoney(model.totalHT, 'MAD')}
+              {fmtMoney(model.totalHT, model.currency)}
             </td>
           </tr>
         </tfoot>

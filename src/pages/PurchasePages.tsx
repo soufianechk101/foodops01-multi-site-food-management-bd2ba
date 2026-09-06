@@ -83,6 +83,7 @@ export function PurchaseOrdersPage() {
       expectedDate: po.expectedDate,
       notes: po.notes,
       company: db.company,
+      currency: cur,
       totalHT: po.lines.reduce((sum, l) => sum + l.qty * l.unitCost, 0),
       lines: po.lines.map(l => {
         const p = db.products.find(x => x.id === l.productId);
