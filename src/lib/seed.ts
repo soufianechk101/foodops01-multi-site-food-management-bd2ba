@@ -166,6 +166,48 @@ function refData() {
   return { units, categories, suppliers, products, sites, users };
 }
 
+/** Base vide prête à l'emploi : référentiel + Admin seul, zéro mouvement */
+export function buildCleanSeed(): DB {
+  const ref = refData();
+  return {
+    version: 6,
+    seededAt: nowISO(),
+    company: {
+      name: "FoodOps Demo",
+      legalName: "FoodOps Hospitality SARL",
+      address: "Twin Center, Tour Ouest, 17e étage",
+      city: "Casablanca",
+      country: "Maroc",
+      phone: "05 22 20 40 40",
+      email: "direction@foodops.ma",
+      ice: "002481935000067",
+      iff: "40581936",
+      rc: "512983",
+      currency: "MAD",
+      defaultVat: 10,
+      targetFoodCost: 30,
+      allowNegativeStock: false,
+      sitePrefixNumbering: false,
+    },
+    ...ref,
+    users: ref.users.filter((u) => u.id === U.admin),
+    purchaseOrders: [],
+    receptions: [],
+    invoices: [],
+    payments: [],
+    transfers: [],
+    consumptions: [],
+    wastes: [],
+    inventories: [],
+    sales: [],
+    supplierReturns: [] as never[],
+    movements: [],
+    audit: [],
+    sequences: {},
+    seqCounter: 0,
+  } as DB;
+}
+
 export function buildSeed(): DB {
   const rnd = mulberry32(20260214);
   const r = (a: number, b: number) => a + rnd() * (b - a);

@@ -10,7 +10,7 @@ import {
 } from "react";
 import localforage from "localforage";
 import type { DB, ID, Site, User } from "../types";
-import { buildSeed } from "../lib/seed";
+import { buildCleanSeed, buildSeed } from "../lib/seed";
 import { checkSiteAccess, pushAudit } from "../lib/engine";
 import { hashPw, nowISO } from "../lib/util";
 
@@ -157,19 +157,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (parsed && typeof parsed === "object" && (Object.prototype.hasOwnProperty.call(parsed, "__proto__") || Object.prototype.hasOwnProperty.call(parsed, "constructor"))) {
             throw new Error("Données corrompues : pollution détectée.");
           }
-          if (parsed.version === 5 && Array.isArray(parsed.movements)) {
+          if (parsed.version === 6 && Array.isArray(parsed.movements)) {
             currentDb = parsed;
+          } else if (parsed.version === 5 && Array.isArray(parsed.movements)) {
+            // Migration v5 → v6 : nettoyage complet, on garde seulement produits/fournisseurs/Admin
+            currentDb = buildCleanSeed();
+            // On conserve le nom de société personnalisé si l'utilisateur l'avait changé
+            if (parsed.company) currentDb.company = { ...currentDb.company, ...parsed.company };
+            await localforage.setItem(DB_KEY, JSON.stringify(currentDb));
           } else {
-            currentDb = buildSeed();
+            currentDb = buildCleanSeed();
             await localforage.setItem(DB_KEY, JSON.stringify(currentDb));
           }
         } else {
-          currentDb = buildSeed();
+          currentDb = buildCleanSeed();
           await localforage.setItem(DB_KEY, JSON.stringify(currentDb));
         }
       } catch (e) {
         console.warn("Erreur de chargement IndexedDB, fallback sur seed.", e);
-        currentDb = buildSeed();
+        currentDb = buildCleanSeed();
       }
 
       setDb(currentDb);
