@@ -252,14 +252,17 @@ export function InventoriesPage() {
   const { db, siteId, allowedSites, act, can, siteName } = useApp();
   const userId = useUserId();
   const cur = db.company.currency;
-  const [showNew, setShowNew] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [invSite, setInvSite] = useState(siteId ?? "");
   const [invCat, setInvCat] = useState("");
-  const [detail, setDetail] = useState<InventoryDoc | null>(null);
+  const [saisieId, setSaisieId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; msg: string; fn: () => void } | null>(null);
   const [actuals, setActuals] = useState<Record<string, string>>({});
+  const [addPid, setAddPid] = useState("");
+  const [detailView, setDetailView] = useState<InventoryDoc | null>(null);
 
-  const detailLive = detail ? db.inventories.find((i) => i.id === detail.id) ?? detail : null;
+  const saisieLive = saisieId ? db.inventories.find((i) => i.id === saisieId) ?? null : null;
+  const detailLive = detailView ? db.inventories.find((i) => i.id === detailView.id) ?? detailView : null;
 
   const rows = useMemo(
     () =>
@@ -272,27 +275,50 @@ export function InventoriesPage() {
   const varianceOf = (inv: InventoryDoc) =>
     inv.lines.reduce((s, l) => s + (l.actualQty === null ? 0 : (l.actualQty - l.theoreticalQty) * l.unitCost), 0);
 
-  const create = () => {
+  const openSaisie = (inv: InventoryDoc) => {
+    setActuals(Object.fromEntries(inv.lines.map((l) => [l.productId, l.actualQty === null ? "" : String(l.actualQty)])));
+    setAddPid("");
+    setSaisieId(inv.id);
+  };
+
+  const createAndOpen = () => {
+    let newId: string | null = null;
     const ok = act(
       (d) => {
-        createInventory(d, { siteId: invSite, date: todayISO(), userId, categoryId: invCat || null });
+        const inv = createInventory(d, { siteId: invSite, date: todayISO(), userId, categoryId: invCat || null });
+        newId = inv.id;
       },
       "Inventaire créé — quantités théoriques gelées, prêtes à être comptées."
     );
-    if (ok) {
-      setShowNew(false);
+    if (ok && newId) {
+      setShowCreate(false);
       setInvCat("");
+      const created = db.inventories.find((x) => x.id === newId) ?? null; // fallback, will be updated via re-render
+      // open saisie after state update — use timeout to let db refresh, or directly set id
+      setSaisieId(newId);
+      // init actuals empty
+      setActuals({});
+      setAddPid("");
     }
-  };
-
-  const openDetail = (inv: InventoryDoc) => {
-    setActuals(Object.fromEntries(inv.lines.map((l) => [l.productId, l.actualQty === null ? "" : String(l.actualQty)])));
-    setDetail(inv);
   };
 
   const saveActual = (inv: InventoryDoc, productId: string, raw: string) => {
     setActuals((a) => ({ ...a, [productId]: raw }));
     act((d) => setInventoryActual(d, inv.id, productId, raw === "" ? null : Math.max(0, parseFloat(raw) || 0), userId));
+  };
+
+  const addProduct = () => {
+    if (!saisieLive || !addPid) return;
+    const ok = act((d) => {
+      const inv = d.inventories.find((x) => x.id === saisieLive.id);
+      if (!inv) throw new Error("Inventaire introuvable.");
+      if (inv.status !== "en_cours") throw new Error("Inventaire clos.");
+      if (inv.lines.some((l) => l.productId === addPid)) throw new Error("Produit déjà dans l'inventaire.");
+      const stocks = computeStocks(d, { siteId: inv.siteId });
+      const e = entryOf(stocks, inv.siteId, addPid);
+      inv.lines.push({ productId: addPid, theoreticalQty: Math.round(e.qty * 1000) / 1000, actualQty: null, unitCost: Math.round(e.avgCost * 100) / 100 });
+    }, "Produit ajouté à l'inventaire.");
+    if (ok) setAddPid("");
   };
 
   const cols: Col<InventoryDoc>[] = [
@@ -326,16 +352,13 @@ export function InventoriesPage() {
       label: "Actions",
       render: (i) => (
         <div className="flex items-center justify-end gap-1.5">
-          {i.status === "en_cours" && can("inventory.create") ? (
-            <Button size="sm" onClick={() => openDetail(i)} icon={<ClipboardCheck size={13} />}>Compter</Button>
+          {i.status === "en_cours" ? (
+            <>
+              <Button size="sm" onClick={() => openSaisie(i)} icon={<ClipboardCheck size={13} />}>Saisir</Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirm({ title: "Supprimer l'inventaire ?", msg: `L'inventaire ${i.number} sera annulé sans ajustement de stock.`, fn: () => act((d) => cancelInventory(d, i.id, userId), "Inventaire annulé.") })} icon={<Trash2 size={13} />}>Supprimer</Button>
+            </>
           ) : (
-            <Button size="sm" variant="ghost" onClick={() => openDetail(i)} icon={<Eye size={13} />}>Voir</Button>
-          )}
-          {i.status === "en_cours" && can("inventory.validate") && (
-            <Button size="sm" variant="outline" onClick={() => setConfirm({ title: "Valider l'inventaire ?", msg: "Les écarts entre quantités théoriques et comptées généreront des ajustements de stock définitifs (INVENTORY_ADJUSTMENT). Cette validation n'est possible qu'une seule fois.", fn: () => act((d) => validateInventory(d, i.id, userId), `Inventaire ${i.number} validé — ajustements comptabilisés.`) })}>Valider</Button>
-          )}
-          {i.status === "en_cours" && can("inventory.validate") && (
-            <Button size="sm" variant="ghost" onClick={() => setConfirm({ title: "Annuler l'inventaire ?", msg: "L'inventaire sera annulé sans aucun ajustement de stock.", fn: () => act((d) => cancelInventory(d, i.id, userId), "Inventaire annulé.") })} icon={<X size={13} />}>Annuler</Button>
+            <Button size="sm" variant="ghost" onClick={() => setDetailView(i)} icon={<Eye size={13} />}>Voir</Button>
           )}
         </div>
       ),
@@ -345,15 +368,16 @@ export function InventoriesPage() {
   return (
     <div>
       <PageHead title="Inventaires" sub="Comptage physique : théorique gelé vs réel compté, écarts transformés en ajustements de stock.">
-        {can("inventory.create") && <Button icon={<Plus size={15} />} onClick={() => { setInvSite(siteId ?? allowedSites[0]?.id ?? ""); setShowNew(true); }}>Nouvel inventaire</Button>}
+        {can("inventory.create") && <Button icon={<Plus size={15} />} onClick={() => { setInvSite(siteId ?? allowedSites[0]?.id ?? ""); setShowCreate(true); }}>Nouvel inventaire</Button>}
       </PageHead>
 
       <DataTable cols={cols} rows={rows} rowKey={(i) => i.id} pageSize={10}
         empty={<EmptyState title="Aucun inventaire" sub="Créez un inventaire pour comparer le stock théorique au stock physique et régulariser les écarts." />}
       />
 
-      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvel inventaire" sub="Les quantités théoriques seront gelées à la création." width="max-w-md"
-        footer={<><Button variant="outline" onClick={() => setShowNew(false)}>Annuler</Button><Button disabled={!invSite} onClick={create}>Créer l'inventaire</Button></>}
+      {/* Modal création — choix site/périmètre puis ouverture page saisie */}
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Nouvel inventaire" sub="Les quantités théoriques seront gelées à la création puis saisies en page dédiée." width="max-w-md"
+        footer={<><Button variant="outline" onClick={() => setShowCreate(false)}>Annuler</Button><Button disabled={!invSite} onClick={createAndOpen}>Créer et saisir</Button></>}
       >
         <div className="space-y-3">
           <Field label="Site">
@@ -370,24 +394,105 @@ export function InventoriesPage() {
         </div>
       </Modal>
 
-      {/* détail / saisie */}
-      <Modal open={!!detailLive} onClose={() => setDetail(null)} title={`Inventaire ${detailLive?.number}`} sub={detailLive ? `${siteName(detailLive.siteId)} · ${fmtDate(detailLive.date)}` : ""} width="max-w-4xl"
-        footer={
-          detailLive?.status === "en_cours" && can("inventory.validate") ? (
-            <Button onClick={() => { setConfirm({ title: "Valider l'inventaire ?", msg: "Les écarts saisis généreront des ajustements de stock définitifs.", fn: () => { act((d) => validateInventory(d, detailLive.id, userId), `Inventaire ${detailLive.number} validé.`); setDetail(null); } }); }}>
-              Valider l'inventaire
-            </Button>
-          ) : undefined
-        }
-      >
-        {detailLive && (
-          <>
-            <div className="mb-3 flex items-center gap-2">
-              <StatusBadge status={detailLive.status} />
-              {detailLive.status === "en_cours" && (
-                <span className="text-[12px] text-mute">Saisissez les quantités comptées — l'écart est calculé en direct.</span>
+      {/* Page dédiée saisie — plein écran comme Sortie de jour */}
+      {saisieLive && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-paper">
+          <div className="flex h-[58px] shrink-0 items-center gap-3 border-b border-line bg-card px-4">
+            <Button variant="outline" size="sm" onClick={() => setSaisieId(null)}>← Retour</Button>
+            <div className="min-w-0">
+              <p className="font-display text-[15px] font-bold text-ink truncate">Inventaire {saisieLive.number} — {siteName(saisieLive.siteId)}</p>
+              <p className="text-[11.5px] text-mute">{fmtDate(saisieLive.date)} · <StatusBadge status={saisieLive.status} /> {saisieLive.status === "en_cours" ? "— saisissez les quantités comptées" : "— lecture seule (validé/annulé)"}</p>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+            <div className="mx-auto max-w-6xl rounded-xl border border-line bg-card p-5 shadow-sm lg:p-6">
+              <div className="overflow-x-auto rounded-md border border-line">
+                <table className="w-full text-[12.5px]">
+                  <thead>
+                    <tr className="border-b border-line bg-paper/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
+                      <th className="px-3 py-2">Produit</th>
+                      <th className="px-2 py-2 text-right">Théorique</th>
+                      <th className="px-2 py-2 text-right">Compté</th>
+                      <th className="px-2 py-2 text-right">Écart</th>
+                      <th className="px-2 py-2 text-right">Écart %</th>
+                      <th className="px-3 py-2 text-right">Valeur écart</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {saisieLive.lines.map((l) => {
+                      const p = db.products.find((x) => x.id === l.productId);
+                      const actual = l.actualQty;
+                      const variance = actual === null ? null : Math.round((actual - l.theoreticalQty) * 1000) / 1000;
+                      const pct = actual === null || l.theoreticalQty === 0 ? null : ((actual - l.theoreticalQty) / l.theoreticalQty) * 100;
+                      const isEnCours = saisieLive.status === "en_cours";
+                      return (
+                        <tr key={l.productId} className={cn("border-b border-line/70 last:border-0", variance !== null && Math.abs(variance) > 0.001 && "bg-warnbg/40")}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold">{p?.name}</p>
+                            <p className="text-[10.5px] text-mute">{db.units.find((u) => u.id === p?.unitId)?.code} · PU {fmtMoney(l.unitCost, cur)}</p>
+                          </td>
+                          <td className="tnum px-2 py-2 text-right font-bold">{fmtNum(l.theoreticalQty)}</td>
+                          <td className="px-2 py-2 text-right">
+                            {isEnCours && can("inventory.create") ? (
+                              <Input type="number" min={0} step="0.01" placeholder="—" value={actuals[l.productId] ?? ""} onChange={(e) => saveActual(saisieLive, l.productId, e.target.value)} className="ml-auto h-8 w-22 text-right tnum" />
+                            ) : (
+                              <span className="tnum font-bold">{actual === null ? "—" : fmtNum(actual)}</span>
+                            )}
+                          </td>
+                          <td className={cn("tnum px-2 py-2 text-right font-bold", variance === null ? "text-mute" : variance < 0 ? "text-bad" : variance > 0 ? "text-copper-600" : "text-ok")}>
+                            {variance === null ? "—" : (variance > 0 ? "+" : "") + fmtNum(variance)}
+                          </td>
+                          <td className="tnum px-2 py-2 text-right text-ink2">{pct === null ? "—" : fmtNum(pct, 1) + " %"}</td>
+                          <td className={cn("tnum px-3 py-2 text-right font-bold", variance === null ? "text-mute" : variance * l.unitCost < 0 ? "text-bad" : "text-ink")}>
+                            {variance === null ? "—" : fmtMoney(variance * l.unitCost, cur)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {saisieLive.status === "en_cours" && can("inventory.create") && (
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-dashed border-line2 bg-paper/60 px-3 py-3">
+                  <span className="text-[12.5px] font-bold text-ink">Ajouter un produit :</span>
+                  <Select value={addPid} onChange={(e) => setAddPid(e.target.value)} className="min-w-64">
+                    <option value="">— Choisir —</option>
+                    {db.products.filter((p) => p.status === "actif" && !saisieLive.lines.some((l) => l.productId === p.id)).map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
+                  </Select>
+                  <Button size="sm" variant="outline" icon={<Plus size={13} />} disabled={!addPid} onClick={addProduct}>Ajouter</Button>
+                  <span className="text-[11.5px] text-mute">Théorique calculé automatiquement.</span>
+                </div>
+              )}
+
+              <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
+                <p className="text-[12px] text-mute">
+                  Écart total : <strong className={cn("tnum", varianceOf(saisieLive) < 0 ? "text-bad" : "text-ink")}>{fmtMoney(varianceOf(saisieLive), cur)}</strong>
+                  {saisieLive.status === "valide" && " — comptabilisé via ajustements d'inventaire."}
+                  {saisieLive.status === "en_cours" && ` · ${saisieLive.lines.filter((l) => l.actualQty !== null).length} / ${saisieLive.lines.length} comptés`}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line bg-card px-4 py-3">
+            <Button variant="outline" onClick={() => setSaisieId(null)}>Fermer</Button>
+            <div className="flex items-center gap-2">
+              {saisieLive.status === "en_cours" && (
+                <Button variant="ghost" onClick={() => setConfirm({ title: "Supprimer l'inventaire ?", msg: `L'inventaire ${saisieLive.number} sera annulé sans ajustement.`, fn: () => { act((d) => cancelInventory(d, saisieLive.id, userId), "Inventaire annulé."); setSaisieId(null); } })} icon={<Trash2 size={13} />}>Supprimer</Button>
+              )}
+              {saisieLive.status === "en_cours" && can("inventory.validate") && (
+                <Button onClick={() => setConfirm({ title: "Valider l'inventaire ?", msg: "Les écarts saisis généreront des ajustements de stock définitifs (INVENTORY_ADJUSTMENT).", fn: () => { act((d) => validateInventory(d, saisieLive.id, userId), `Inventaire ${saisieLive.number} validé.`); setSaisieId(null); } })}>Valider l'inventaire</Button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lecture seule pour inventaires validés/annulés — si ouvert via Voir depuis la liste */}
+      <Modal open={!!detailLive} onClose={() => setDetailView(null)} title={`Inventaire ${detailLive?.number}`} sub={detailLive ? `${siteName(detailLive.siteId)} · ${fmtDate(detailLive.date)}` : ""} width="max-w-4xl">
+        {detailLive && (
+          <>
+            <div className="mb-3 flex items-center gap-2"><StatusBadge status={detailLive.status} /></div>
             <div className="overflow-x-auto rounded-md border border-line">
               <table className="w-full text-[12.5px]">
                 <thead>
@@ -396,49 +501,27 @@ export function InventoriesPage() {
                     <th className="px-2 py-2 text-right">Théorique</th>
                     <th className="px-2 py-2 text-right">Compté</th>
                     <th className="px-2 py-2 text-right">Écart</th>
-                    <th className="px-2 py-2 text-right">Écart %</th>
                     <th className="px-3 py-2 text-right">Valeur écart</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detailLive.lines.map((l) => {
                     const p = db.products.find((x) => x.id === l.productId);
-                    const actual = l.actualQty;
-                    const variance = actual === null ? null : Math.round((actual - l.theoreticalQty) * 1000) / 1000;
-                    const pct = actual === null || l.theoreticalQty === 0 ? null : ((actual - l.theoreticalQty) / l.theoreticalQty) * 100;
+                    const variance = l.actualQty === null ? null : Math.round((l.actualQty - l.theoreticalQty) * 1000) / 1000;
                     return (
-                      <tr key={l.productId} className={cn("border-b border-line/70 last:border-0", variance !== null && Math.abs(variance) > 0.001 && "bg-warnbg/40")}>
-                        <td className="px-3 py-2">
-                          <p className="font-semibold">{p?.name}</p>
-                          <p className="text-[10.5px] text-mute">{db.units.find((u) => u.id === p?.unitId)?.code} · PU {fmtMoney(l.unitCost, cur)}</p>
-                        </td>
-                        <td className="tnum px-2 py-2 text-right font-bold">{fmtNum(l.theoreticalQty)}</td>
-                        <td className="px-2 py-2 text-right">
-                          {detailLive.status === "en_cours" && can("inventory.create") ? (
-                            <Input type="number" min={0} step="0.01" placeholder="—" value={actuals[l.productId] ?? ""} onChange={(e) => saveActual(detailLive, l.productId, e.target.value)} className="ml-auto h-8 w-22 text-right tnum" />
-                          ) : (
-                            <span className="tnum font-bold">{actual === null ? "—" : fmtNum(actual)}</span>
-                          )}
-                        </td>
-                        <td className={cn("tnum px-2 py-2 text-right font-bold", variance === null ? "text-mute" : variance < 0 ? "text-bad" : variance > 0 ? "text-copper-600" : "text-ok")}>
-                          {variance === null ? "—" : (variance > 0 ? "+" : "") + fmtNum(variance)}
-                        </td>
-                        <td className="tnum px-2 py-2 text-right text-ink2">{pct === null ? "—" : fmtNum(pct, 1) + " %"}</td>
-                        <td className={cn("tnum px-3 py-2 text-right font-bold", variance === null ? "text-mute" : variance * l.unitCost < 0 ? "text-bad" : "text-ink")}>
-                          {variance === null ? "—" : fmtMoney(variance * l.unitCost, cur)}
-                        </td>
+                      <tr key={l.productId} className="border-b border-line/70 last:border-0">
+                        <td className="px-3 py-2 font-semibold">{p?.name}</td>
+                        <td className="tnum px-2 py-2 text-right">{fmtNum(l.theoreticalQty)}</td>
+                        <td className="tnum px-2 py-2 text-right font-bold">{l.actualQty === null ? "—" : fmtNum(l.actualQty)}</td>
+                        <td className={cn("tnum px-2 py-2 text-right font-bold", variance === null ? "text-mute" : variance < 0 ? "text-bad" : "text-ok")}>{variance === null ? "—" : fmtNum(variance)}</td>
+                        <td className="tnum px-3 py-2 text-right font-bold">{variance === null ? "—" : fmtMoney(variance * l.unitCost, cur)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            {detailLive.status !== "en_cours" && (
-              <p className="mt-3 text-[12px] text-mute">
-                Écart total en valeur : <strong className={cn("tnum", varianceOf(detailLive) < 0 ? "text-bad" : "text-ink")}>{fmtMoney(varianceOf(detailLive), cur)}</strong>
-                {detailLive.status === "valide" && " — comptabilisé via ajustements d'inventaire."}
-              </p>
-            )}
+            <p className="mt-3 text-[12px] text-mute">Écart total : <strong className={cn("tnum", varianceOf(detailLive) < 0 ? "text-bad" : "text-ink")}>{fmtMoney(varianceOf(detailLive), cur)}</strong>{detailLive.status === "valide" && " — comptabilisé."}</p>
           </>
         )}
       </Modal>
