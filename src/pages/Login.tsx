@@ -3,7 +3,6 @@ import { ArrowRight, Database, KeyRound, Layers, Lock, Percent, UserRound } from
 import { useApp } from "../state/AppContext";
 import { Button, Field, Input } from "../components/ui";
 import { LogoMark } from "../components/Layout";
-import { DEMO_ACCOUNTS } from "../lib/seed";
 import { cn } from "../lib/cn";
 
 export function Login() {
@@ -126,34 +125,6 @@ export function Login() {
                 Se connecter
               </Button>
             </form>
-          </div>
-
-          <div className="mt-4 rounded-lg border border-line bg-card/80 p-3.5">
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-mute">
-              Comptes de démonstration
-            </p>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {DEMO_ACCOUNTS.map((a) => (
-                <button
-                  key={a.username}
-                  onClick={() => {
-                    setUsername(a.username);
-                    setPassword(a.password);
-                  }}
-                  className={cn(
-                    "rounded-md border px-2.5 py-1.5 text-left transition-all hover:border-copper-400 hover:bg-copper-50",
-                    a.username === "proprietaire" ? "col-span-2 border-copper-300 bg-copper-50/70" : "border-line"
-                  )}
-                >
-                  <span className={cn("block text-[12px] font-bold", a.username === "proprietaire" ? "text-copper-700" : "text-ink")}>
-                    {a.role}
-                  </span>
-                  <span className="block font-mono text-[10.5px] text-mute">
-                    {a.username} / {a.password}
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </div>
