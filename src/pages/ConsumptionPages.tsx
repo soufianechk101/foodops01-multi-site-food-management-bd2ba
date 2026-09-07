@@ -49,7 +49,7 @@ import {
    CONSOMMATIONS
    ============================================================ */
 export function ConsumptionsPage() {
-  const { db, siteId, allowedSites, act, can, siteName } = useApp();
+  const { db, siteId, allowedSites, act, can, siteName, nav } = useApp();
   const userId = useUserId();
   const cur = db.company.currency;
   const [showNew, setShowNew] = useState(false);
@@ -128,7 +128,7 @@ export function ConsumptionsPage() {
   return (
     <div>
       <PageHead title="Consommations" sub="Sorties de stock par service — valorisées au coût moyen pondéré du site, elles alimentent le food cost.">
-        {can("consumption.create") && <Button icon={<Plus size={15} />} onClick={() => { setCSite(siteId ?? allowedSites[0]?.id ?? ""); setShowNew(true); }}>Nouvelle consommation</Button>}
+        {can("consumption.create") && <Button icon={<Plus size={15} />} onClick={() => { setCSite(siteId ?? allowedSites[0]?.id ?? ""); setShowNew(true); }}>Sortie de jour</Button>}
       </PageHead>
 
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
@@ -143,32 +143,48 @@ export function ConsumptionsPage() {
       </div>
 
       <DataTable cols={cols} rows={rows} rowKey={(c) => c.id} pageSize={10}
-        empty={<EmptyState icon={<Soup size={24} />} title="Aucune consommation" sub="Enregistrez les sorties de matières par service (déjeuner, dîner, bar…) pour suivre le coût réel." action={can("consumption.create") ? <Button icon={<Plus size={15} />} onClick={() => setShowNew(true)}>Créer une consommation</Button> : undefined} />}
+        empty={<EmptyState icon={<Soup size={24} />} title="Aucune consommation" sub="Enregistrez les sorties de matières par service (déjeuner, dîner, bar…) pour suivre le coût réel." action={can("consumption.create") ? <Button icon={<Plus size={15} />} onClick={() => setShowNew(true)}>Sortie de jour</Button> : undefined} />}
       />
 
-      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle consommation" sub="Brouillon — le stock ne diminue qu'à la validation." width="max-h"
-        footer={<><Button variant="outline" onClick={() => setShowNew(false)}>Fermer</Button><Button disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={create}>Enregistrer le brouillon</Button></>}
-      >
-        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Site">
-            <Select value={cSite} onChange={(e) => setCSite(e.target.value)}>
-              {allowedSites.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Date">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
-          <Field label="Service">
-            <Select value={service} onChange={(e) => setService(e.target.value as Service)}>
-              {SERVICES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </Select>
-          </Field>
+      {/* Page dédiée Sortie de jour — remplace le popup */}
+      {showNew && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-paper">
+          <div className="flex h-[58px] shrink-0 items-center gap-3 border-b border-line bg-card px-4">
+            <Button variant="outline" size="sm" onClick={() => setShowNew(false)}>← Retour</Button>
+            <div>
+              <p className="font-display text-[15px] font-bold text-ink">Sortie de jour</p>
+              <p className="text-[11.5px] text-mute">Brouillon — le stock ne diminue qu'à la validation depuis la liste.</p>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+            <div className="mx-auto max-w-4xl rounded-xl border border-line bg-card p-5 shadow-sm">
+              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Field label="Site">
+                  <Select value={cSite} onChange={(e) => setCSite(e.target.value)}>
+                    {allowedSites.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Date">
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </Field>
+                <Field label="Service">
+                  <Select value={service} onChange={(e) => setService(e.target.value as Service)}>
+                    {SERVICES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </Select>
+                </Field>
+              </div>
+              <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} showCost={false} qtyLabel="Qté consommée" />
+              <Field label="Notes" className="mt-4">
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Menu, événement…" />
+              </Field>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-card px-4 py-3">
+            <Button variant="outline" onClick={() => setShowNew(false)}>Annuler</Button>
+            <Button disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={create}>Enregistrer le brouillon</Button>
+          </div>
         </div>
-        <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} showCost={false} qtyLabel="Qté consommée" />
-        <Field label="Notes" className="mt-3">
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Menu, événement…" />
-        </Field>
-      </Modal>
+      )}
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title={`Consommation ${detail?.number}`} sub={detail ? `${siteName(detail.siteId)} · ${fmtDate(detail.date)} · ${serviceLabel(detail.service)}` : ""} width="max-w-2xl">
         {detail && (
