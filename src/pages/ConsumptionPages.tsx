@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowDownRight, ArrowUpRight, Eye, Plus, Receipt, Soup, X } from "lucide-react";
 import { useApp, useUserId } from "../state/AppContext";
 import {
@@ -159,8 +160,8 @@ export function ConsumptionsPage() {
         empty={<EmptyState icon={<Soup size={24} />} title="Aucune consommation" sub="Enregistrez les sorties de matières par service (déjeuner, dîner, bar…) pour suivre le coût réel." action={can("consumption.create") ? <Button icon={<Plus size={15} />} onClick={() => setShowNew(true)}>Sortie de jour</Button> : undefined} />}
       />
 
-      {/* Page dédiée Sortie de jour — remplace le popup */}
-      {showNew && (
+      {/* Page dédiée Sortie de jour — portal hors anim-fade-up */}
+      {showNew && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-40 flex flex-col bg-paper">
           <div className="flex h-[58px] shrink-0 items-center gap-3 border-b border-line bg-card px-4">
             <Button variant="outline" size="sm" onClick={() => setShowNew(false)}>← Retour</Button>
@@ -169,8 +170,8 @@ export function ConsumptionsPage() {
               <p className="text-[11.5px] text-mute">Brouillon — le stock ne diminue qu'à la validation depuis la liste.</p>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto flex flex-col px-4 py-6 lg:px-8 lg:py-8">
-            <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col rounded-xl border border-line bg-card p-6 shadow-sm">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
+            <div className="mx-auto w-full max-w-6xl rounded-xl border border-line bg-card p-6 shadow-sm">
               <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Field label="Site">
                   <Select value={cSite} onChange={(e) => setCSite(e.target.value)}>
@@ -253,7 +254,8 @@ export function ConsumptionsPage() {
             <Button variant="outline" disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0) || lines.some((l) => { const e = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null; return !!l.productId && !db.company.allowNegativeStock && !!e && l.qty > e.qty; })} onClick={create}>Enregistrer en brouillon</Button>
             <Button disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0) || lines.some((l) => { const e = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null; return !!l.productId && !db.company.allowNegativeStock && !!e && l.qty > e.qty; })} onClick={createAndValidate}>Valider la sortie</Button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title={`Consommation ${detail?.number}`} sub={detail ? `${siteName(detail.siteId)} · ${fmtDate(detail.date)} · ${serviceLabel(detail.service)}` : ""} width="max-w-2xl">

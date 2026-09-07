@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowRight,
   ClipboardCheck,
@@ -394,8 +395,8 @@ export function InventoriesPage() {
         </div>
       </Modal>
 
-      {/* Page dédiée saisie — plein écran comme Sortie de jour */}
-      {saisieLive && (
+      {/* Page dédiée saisie — plein écran comme Sortie de jour — portal hors anim-fade-up pour fixed viewport correct */}
+      {saisieLive && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-40 flex flex-col bg-paper">
           <div className="flex h-[58px] shrink-0 items-center gap-3 border-b border-line bg-card px-4">
             <Button variant="outline" size="sm" onClick={() => setSaisieId(null)}>← Retour</Button>
@@ -404,9 +405,9 @@ export function InventoriesPage() {
               <p className="text-[11.5px] text-mute">{fmtDate(saisieLive.date)} · <StatusBadge status={saisieLive.status} /> {saisieLive.status === "en_cours" ? "— saisissez les quantités comptées" : "— lecture seule (validé/annulé)"}</p>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto flex flex-col px-4 py-6 lg:px-8 lg:py-8">
-            <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col rounded-xl border border-line bg-card p-6 shadow-sm">
-              <div className="flex-1 overflow-auto rounded-md border border-line">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
+            <div className="mx-auto w-full max-w-6xl rounded-xl border border-line bg-card p-6 shadow-sm">
+              <div className="overflow-x-auto rounded-md border border-line">
                 <table className="w-full text-[12.5px]">
                   <thead>
                     <tr className="border-b border-line bg-paper/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
@@ -454,7 +455,7 @@ export function InventoriesPage() {
               </div>
 
               {saisieLive.status === "en_cours" && can("inventory.create") && (
-                <div className="mt-4 shrink-0 flex flex-wrap items-center gap-2 rounded-md border border-dashed border-line2 bg-paper/60 px-3 py-3">
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-dashed border-line2 bg-paper/60 px-3 py-3">
                   <span className="text-[12.5px] font-bold text-ink">Ajouter un produit :</span>
                   <Select value={addPid} onChange={(e) => setAddPid(e.target.value)} className="min-w-64">
                     <option value="">— Choisir —</option>
@@ -465,7 +466,7 @@ export function InventoriesPage() {
                 </div>
               )}
 
-              <div className="mt-4 shrink-0 flex items-center justify-between border-t border-line pt-3">
+              <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
                 <p className="text-[12px] text-mute">
                   Écart total : <strong className={cn("tnum", varianceOf(saisieLive) < 0 ? "text-bad" : "text-ink")}>{fmtMoney(varianceOf(saisieLive), cur)}</strong>
                   {saisieLive.status === "valide" && " — comptabilisé via ajustements d'inventaire."}
@@ -485,7 +486,8 @@ export function InventoriesPage() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Lecture seule pour inventaires validés/annulés — si ouvert via Voir depuis la liste */}

@@ -507,7 +507,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto bg-paper">
-          <div key={route} className="anim-fade-up mx-auto w-full max-w-[1380px] px-4 py-5 lg:px-6">
+          <div key={route} className="anim-fade mx-auto w-full max-w-[1380px] px-4 py-5 lg:px-6">
             {children}
           </div>
         </main>
