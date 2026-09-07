@@ -33,6 +33,7 @@ import {
   cn,
   type Col,
 } from "../components/ui";
+import { NAV } from "../components/Layout";
 import { pushAudit } from "../lib/engine";
 import { buildSeed } from "../lib/seed";
 import { runEngineTests, type TestResult } from "../lib/tests";
@@ -138,7 +139,9 @@ export function UsersPage() {
 
   const emptyForm = () => ({
     id: uid(), name: "", username: "", password: "", role: "econome" as Role,
-    siteIds: "all" as string[] | "all", active: true,
+    siteIds: "all" as string[] | "all",
+    allowedRoutes: null as string[] | null,
+    active: true,
   });
   const [form, setForm] = useState(emptyForm());
 
@@ -158,6 +161,7 @@ export function UsersPage() {
         passwordHash: form.password ? hashPw(form.password) : i >= 0 ? d.users[i].passwordHash : hashPw("password"),
         role: form.role,
         siteIds: form.siteIds,
+        allowedRoutes: form.allowedRoutes,
         active: form.active,
         createdAt: i >= 0 ? d.users[i].createdAt : nowISO(),
       };
@@ -226,7 +230,7 @@ export function UsersPage() {
       render: (u) => (
         <div className="flex items-center justify-end gap-1">
           {can("users.edit") && (u.role !== "proprietaire" || me?.role === "proprietaire") && (
-            <Button size="sm" variant="ghost" onClick={() => { setForm({ id: u.id, name: u.name, username: u.username, password: "", role: u.role, siteIds: u.siteIds, active: u.active }); setEditing(u); setShowNew(true); }} icon={<Pencil size={13} />}>Modifier</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setForm({ id: u.id, name: u.name, username: u.username, password: "", role: u.role, siteIds: u.siteIds, allowedRoutes: u.allowedRoutes ?? null, active: u.active }); setEditing(u); setShowNew(true); }} icon={<Pencil size={13} />}>Modifier</Button>
           )}
           {can("users.edit") && u.id !== me?.id && (u.role !== "proprietaire" || me?.role === "proprietaire") && (
             <Button size="sm" variant="ghost" onClick={() => toggleActive(u)}>{u.active ? "Désactiver" : "Réactiver"}</Button>
@@ -298,6 +302,37 @@ export function UsersPage() {
                       {s.code} — {s.name}
                     </label>
                   ))}
+                </div>
+              )}
+            </div>
+          </Field>
+          <Field label="Pages autorisées — contrôle du menu">
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-[13px] font-semibold">
+                <input type="checkbox" checked={form.allowedRoutes === null} onChange={(e) => setForm({ ...form, allowedRoutes: e.target.checked ? null : NAV.flatMap((g) => g.items.map((i) => i.route)) })} className="h-4 w-4 accent-pine-700" />
+                Par défaut (selon le rôle)
+              </label>
+              {form.allowedRoutes !== null && (
+                <div className="max-h-64 overflow-y-auto rounded-md border border-line p-2.5">
+                  <div className="mb-2 flex gap-1.5">
+                    <button type="button" className="rounded border border-line px-2 py-1 text-[11px] font-bold" onClick={() => setForm({ ...form, allowedRoutes: NAV.flatMap((g) => g.items.map((i) => i.route)) })}>Tout cocher</button>
+                    <button type="button" className="rounded border border-line px-2 py-1 text-[11px] font-bold" onClick={() => setForm({ ...form, allowedRoutes: [] })}>Tout décocher</button>
+                  </div>
+                  {NAV.map((g) => (
+                    <div key={g.group} className="mb-2">
+                      <p className="text-[10.5px] font-bold uppercase tracking-wide text-mute">{g.group}</p>
+                      <div className="mt-1 grid grid-cols-1 gap-1">
+                        {g.items.map((it) => (
+                          <label key={it.route} className="flex items-center gap-2 text-[12.5px] font-medium text-ink2">
+                            <input type="checkbox" className="h-4 w-4 accent-pine-700" checked={form.allowedRoutes!.includes(it.route)} onChange={(e) => setForm({ ...form, allowedRoutes: e.target.checked ? [...form.allowedRoutes!, it.route] : form.allowedRoutes!.filter((x) => x !== it.route) })} />
+                            {it.label}
+                            <span className="font-mono text-[10px] text-mute">({it.route})</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="mt-2 text-[11px] text-mute">Si aucune page cochée, l'utilisateur ne verra que le tableau de bord.</p>
                 </div>
               )}
             </div>

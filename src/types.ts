@@ -68,6 +68,8 @@ export interface User {
   role: Role;
   /** "all" = accès à tous les sites, sinon liste d'IDs autorisés */
   siteIds: ID[] | "all";
+  /** null/undefined = héritage du rôle ; tableau = whitelist exacte des routes autorisées */
+  allowedRoutes?: string[] | null;
   active: boolean;
   createdAt: string;
 }

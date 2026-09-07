@@ -82,7 +82,7 @@ export const ROUTE_TITLES: Record<string, string> = {
   sauvegarde: "Sauvegarde & restauration",
 };
 
-const NAV: {
+export const NAV: {
   group: string;
   items: { route: string; label: string; icon: ReactNode; perm: string }[];
 }[] = [
@@ -382,7 +382,7 @@ function NotifBell() {
 
 /* ---------- coquille ---------- */
 export function Layout({ children }: { children: ReactNode }) {
-  const { user, route, nav, logout, can, db } = useApp();
+  const { user, route, nav, logout, canRoute, db } = useApp();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -399,7 +399,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </div>
       <nav className="flex-1 overflow-y-auto px-2.5 pb-4">
         {NAV.map((g) => {
-          const items = g.items.filter((i) => can(i.perm));
+          const items = g.items.filter((i) => canRoute(i.route, i.perm));
           if (!items.length) return null;
           const closed = collapsed[g.group];
           return (

@@ -34,13 +34,13 @@ const AuditPage = lazy(() => import("./pages/AdminPages").then((m) => ({ default
 const BackupPage = lazy(() => import("./pages/AdminPages").then((m) => ({ default: m.BackupPage })));
 
 function Router() {
-  const { route, can } = useApp();
+  const { route, canRoute } = useApp();
   // routes composées « base:registre » (ex. referentiel:unites)
   const base = route.split(":")[0];
   const tab = route.split(":")[1] as RefTab | undefined;
 
-  const guard = (perm: string, node: React.ReactNode) =>
-    can(perm) ? (
+  const guard = (routeKey: string, perm: string, node: React.ReactNode) =>
+    canRoute(routeKey, perm) ? (
       node
     ) : (
       <EmptyState
@@ -52,51 +52,51 @@ function Router() {
 
   switch (base) {
     case "dashboard":
-      return guard("dashboard.view", <Dashboard />);
+      return guard("dashboard", "dashboard.view", <Dashboard />);
     case "proprietaire":
-      return guard("proprietaire.view", <OwnerPage />);
+      return guard("proprietaire", "proprietaire.view", <OwnerPage />);
     case "referentiel":
-      return guard("products.view", <ReferentielPage tab={tab} />);
+      return guard(route, "products.view", <ReferentielPage tab={tab} />);
     case "achats":
-      return guard("purchases.view", <PurchaseOrdersPage />);
+      return guard("achats", "purchases.view", <PurchaseOrdersPage />);
     case "receptions":
-      return guard("receptions.view", <ReceptionsPage />);
+      return guard("receptions", "receptions.view", <ReceptionsPage />);
     case "factures":
-      return guard("purchases.view", <InvoicesPage />);
+      return guard("factures", "purchases.view", <InvoicesPage />);
     case "reglements":
-      return guard("purchases.view", <PaymentsPage />);
+      return guard("reglements", "purchases.view", <PaymentsPage />);
     case "stock":
-      return guard("stock.view", <StockPage />);
+      return guard("stock", "stock.view", <StockPage />);
     case "mouvements":
-      return guard("stock.view", <MovementsPage />);
+      return guard("mouvements", "stock.view", <MovementsPage />);
     case "transferts":
-      return guard("stock.transfer", <TransfersPage />);
+      return guard("transferts", "stock.transfer", <TransfersPage />);
     case "stock-initial":
-      return guard("stock.view", <InitialStockPage />);
+      return guard("stock-initial", "stock.view", <InitialStockPage />);
     case "inventaires":
-      return guard("inventory.view", <InventoriesPage />);
+      return guard("inventaires", "inventory.view", <InventoriesPage />);
     case "pertes":
-      return guard("waste.view", <WastePage />);
+      return guard("pertes", "waste.view", <WastePage />);
     case "consommations":
-      return guard("consumption.view", <ConsumptionsPage />);
+      return guard("consommations", "consumption.view", <ConsumptionsPage />);
     case "ventes":
-      return guard("sales.view", <SalesFoodCostPage />);
+      return guard("ventes", "sales.view", <SalesFoodCostPage />);
     case "produits":
-      return guard("products.view", <ProductsPage />);
+      return guard("produits", "products.view", <ProductsPage />);
     case "categories":
-      return guard("products.view", <CategoriesPage />);
+      return guard("categories", "products.view", <CategoriesPage />);
     case "fournisseurs":
-      return guard("suppliers.view", <SuppliersPage />);
+      return guard("fournisseurs", "suppliers.view", <SuppliersPage />);
     case "rapports":
-      return guard("reports.view", <ReportsPage />);
+      return guard("rapports", "reports.view", <ReportsPage />);
     case "utilisateurs":
-      return guard("users.view", <UsersPage />);
+      return guard("utilisateurs", "users.view", <UsersPage />);
     case "parametres":
-      return guard("settings.view", <SettingsPage />);
+      return guard("parametres", "settings.view", <SettingsPage />);
     case "audit":
-      return guard("audit.view", <AuditPage />);
+      return guard("audit", "audit.view", <AuditPage />);
     case "sauvegarde":
-      return guard("backup.manage", <BackupPage />);
+      return guard("sauvegarde", "backup.manage", <BackupPage />);
     default:
       return <Dashboard />;
   }

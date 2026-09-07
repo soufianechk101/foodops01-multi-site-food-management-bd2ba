@@ -80,6 +80,16 @@ function canFor(user: User | null, perm: string): boolean {
   return perm.endsWith(".view") || perm === "reports.export" || perm === "dashboard.view";
 }
 
+// Whitelist par utilisateur : si allowedRoutes défini (tableau non-vide explicite), il prime sur le rôle
+export function canRouteFor(user: User | null, route: string, perm: string): boolean {
+  if (!user) return false;
+  // si l'utilisateur a une whitelist personnalisée → c'est elle qui décide
+  if (Array.isArray(user.allowedRoutes)) {
+    return user.allowedRoutes.includes(route);
+  }
+  return canFor(user, perm);
+}
+
 /* ---------- chargement / sauvegarde (Async avec IndexedDB) ---------- */
 
 export async function persistDB(db: DB): Promise<void> {
@@ -108,6 +118,7 @@ interface AppCtx {
   act: (fn: (d: DB) => void, okMsg?: string) => boolean;
   replaceDB: (db: DB) => void;
   can: (perm: string) => boolean;
+  canRoute: (route: string, perm: string) => boolean;
   checkSite: (siteId: ID) => boolean;
   allowedSites: Site[];
   siteName: (id: ID | null | undefined) => string;
@@ -350,6 +361,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const can = useCallback((perm: string) => canFor(userRef.current, perm), []);
 
+  const canRoute = useCallback((route: string, perm: string) => canRouteFor(userRef.current, route, perm), []);
+
   const allowedSites = useMemo(() => {
     if (!user || !db) return [];
     const active = db.sites.filter((s) => s.status === "actif");
@@ -404,6 +417,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     act,
     replaceDB,
     can,
+    canRoute,
     checkSite,
     allowedSites,
     siteName,
