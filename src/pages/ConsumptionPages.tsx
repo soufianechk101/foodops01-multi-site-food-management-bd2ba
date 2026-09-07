@@ -101,6 +101,18 @@ export function ConsumptionsPage() {
     }
   };
 
+  const createAndValidate = () => {
+    const id = uid();
+    const ok = act(
+      (d) => {
+        saveConsumption(d, { id, number: "", siteId: cSite, date, service, status: "brouillon", notes, lines: lines.map((l) => ({ productId: l.productId, qty: l.qty })), userId, createdAt: nowISO() });
+        validateConsumption(d, id, userId);
+      },
+      "Sortie validée — stock réduit."
+    );
+    if (ok) { setShowNew(false); setLines([]); setNotes(""); }
+  };
+
   const cols: Col<Consumption>[] = [
     { key: "num", label: "N°", sortVal: (c) => c.number, render: (c) => <span className="font-mono text-[11.5px] font-bold text-pine-700">{c.number}</span> },
     { key: "date", label: "Date", sortVal: (c) => c.date, render: (c) => <span className="text-mute">{fmtDate(c.date)}</span> },
@@ -238,7 +250,8 @@ export function ConsumptionsPage() {
           </div>
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-card px-4 py-3">
             <Button variant="outline" onClick={() => setShowNew(false)}>Annuler</Button>
-            <Button disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0) || lines.some((l) => { const e = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null; return !!l.productId && !db.company.allowNegativeStock && !!e && l.qty > e.qty; })} onClick={create}>Enregistrer le brouillon</Button>
+            <Button variant="outline" disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0) || lines.some((l) => { const e = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null; return !!l.productId && !db.company.allowNegativeStock && !!e && l.qty > e.qty; })} onClick={create}>Enregistrer en brouillon</Button>
+            <Button disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0) || lines.some((l) => { const e = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null; return !!l.productId && !db.company.allowNegativeStock && !!e && l.qty > e.qty; })} onClick={createAndValidate}>Valider la sortie</Button>
           </div>
         </div>
       )}
