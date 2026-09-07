@@ -346,6 +346,7 @@ export function ReceptionsPage() {
   const [detail, setDetail] = useState<Reception | null>(null);
   const [confirm, setConfirm] = useState<{ title: string; msg: string; fn: () => void } | null>(null);
 
+  const [editRec, setEditRec] = useState<Reception | null>(null);
   const [supplierId, setSupplierId] = useState("");
   const [recSite, setRecSite] = useState(siteId ?? "");
   const [date, setDate] = useState(todayISO());
@@ -390,6 +391,7 @@ export function ReceptionsPage() {
   );
 
   const openNew = () => {
+    setEditRec(null);
     setSupplierId(db.suppliers.find((s) => s.status === "actif")?.id ?? "");
     setRecSite(siteId ?? allowedSites[0]?.id ?? "");
     setDate(todayISO());
@@ -399,16 +401,28 @@ export function ReceptionsPage() {
     setShowNew(true);
   };
 
+  const openEdit = (rec: Reception) => {
+    setEditRec(rec);
+    setSupplierId(rec.supplierId);
+    setRecSite(rec.siteId);
+    setDate(rec.date);
+    setInvoiceRef(rec.invoiceRef);
+    setNotes(rec.notes);
+    setLines(rec.lines.map((l) => ({ productId: l.productId, qty: l.receivedQty, orderedQty: l.orderedQty, unitCost: l.unitCost, lot: l.lot, expiry: l.expiry })));
+    setShowNew(true);
+  };
+
   const save = () => {
+    const isEdit = !!editRec;
     const ok = act(
       (d) =>
         saveReception(d, {
-          id: uid(),
-          number: "",
+          id: isEdit ? editRec!.id : uid(),
+          number: isEdit ? editRec!.number : "",
           supplierId,
           siteId: recSite,
           date,
-          poId: null,
+          poId: isEdit ? editRec!.poId : null,
           invoiceRef,
           status: "brouillon",
           notes,
@@ -422,11 +436,11 @@ export function ReceptionsPage() {
             expiry: l.expiry ?? "",
           })),
           userId,
-          createdAt: nowISO(),
+          createdAt: isEdit ? editRec!.createdAt : nowISO(),
         }),
-      "Réception enregistrée en brouillon — le stock n'augmentera qu'à la validation."
+      isEdit ? "Réception mise à jour — corrigez les quantités reçues puis validez." : "Réception enregistrée en brouillon — le stock n'augmentera qu'à la validation."
     );
-    if (ok) setShowNew(false);
+    if (ok) { setShowNew(false); setEditRec(null); }
   };
 
   const cols: Col<Reception>[] = [
@@ -443,6 +457,9 @@ export function ReceptionsPage() {
       render: (r) => (
         <div className="flex items-center justify-end gap-1.5">
           <Button size="sm" variant="ghost" onClick={() => setDetail(r)} icon={<Eye size={13} />}>Détail</Button>
+          {r.status === "brouillon" && can("receptions.create") && (
+            <Button size="sm" variant="ghost" onClick={() => openEdit(r)} icon={<Pencil size={13} />}>Modifier</Button>
+          )}
           {r.status === "brouillon" && can("receptions.validate") && (
             <Button size="sm" onClick={() => setConfirm({ title: "Valider la réception ?", msg: `La réception ${r.number} augmentera le stock de ${siteName(r.siteId)} (mouvements RECEPTION, coût moyen pondéré mis à jour). Cette validation n'est possible qu'une seule fois.`, fn: () => act((d) => validateReception(d, r.id, userId), `Réception ${r.number} validée — stock augmenté.`) })}>Valider</Button>
           )}
@@ -464,8 +481,13 @@ export function ReceptionsPage() {
         empty={<EmptyState icon={<Truck size={24} />} title="Aucune réception" sub="Réceptionnez une livraison directe ou générez une réception depuis un bon de commande approuvé." action={can("receptions.create") ? <Button icon={<Plus size={15} />} onClick={openNew}>Créer une réception</Button> : undefined} />}
       />
 
-      <Modal open={showNew} onClose={() => setShowNew(false)} title="Nouvelle réception" sub="Livraison directe — brouillon sans impact sur le stock." width="max-w-4xl">
+      <Modal open={showNew} onClose={() => { setShowNew(false); setEditRec(null); }} title={editRec ? `Modifier ${editRec.number}` : "Nouvelle réception"} sub={editRec ? `Liée à ${editRec.poId ? db.purchaseOrders.find(p=>p.id===editRec.poId)?.number ?? editRec.poId : "livraison directe"} — corrigez la quantité reçue` : "Livraison directe — brouillon sans impact sur le stock."} width="max-w-4xl">
         <div className="space-y-4 max-h-[calc(90vh-200px)] overflow-y-auto pr-2">
+          {editRec?.poId && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12.5px] leading-snug text-amber-900">
+              <span className="font-bold">Commande {db.purchaseOrders.find(p=>p.id===editRec.poId)?.number} :</span> 20 kg commandés → saisissez <span className="font-bold">12 kg</span> dans « Qté reçue », laissez « Commandé » à 20. Le bon passera en « Partiellement reçu » et le reste pourra être réceptionné plus tard.
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Fournisseur" className="sm:col-span-2">
               <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
@@ -484,7 +506,7 @@ export function ReceptionsPage() {
           
           <div className="border border-line rounded-md overflow-hidden">
             <div className="max-h-[300px] overflow-y-auto">
-              <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} showLot qtyLabel="Qté reçue" />
+              <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} showLot showOrdered={!!editRec?.poId} qtyLabel="Qté reçue" />
             </div>
           </div>
           
@@ -499,8 +521,8 @@ export function ReceptionsPage() {
         </div>
         
         <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-line">
-          <Button variant="outline" onClick={() => setShowNew(false)}>Fermer</Button>
-          <Button disabled={!supplierId || !recSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={save}>Enregistrer le brouillon</Button>
+          <Button variant="outline" onClick={() => { setShowNew(false); setEditRec(null); }}>Fermer</Button>
+          <Button disabled={!supplierId || !recSite || !lines.length || lines.some((l) => !l.productId || l.qty < 0)} onClick={save}>{editRec ? "Enregistrer les corrections" : "Enregistrer le brouillon"}</Button>
         </div>
       </Modal>
 
