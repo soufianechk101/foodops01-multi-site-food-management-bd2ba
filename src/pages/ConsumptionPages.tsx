@@ -26,6 +26,7 @@ import {
   cancelConsumption,
   computeStocks,
   entryOf,
+  soonestExpiry,
   saveConsumption,
   saveSale,
   validateConsumption,
@@ -173,7 +174,63 @@ export function ConsumptionsPage() {
                   </Select>
                 </Field>
               </div>
-              <LineEditor rows={lines} onChange={setLines} products={db.products.filter((p) => p.status === "actif")} units={db.units} showCost={false} qtyLabel="Qté consommée" />
+              {/* Editeur sortie : stock, DLC, PU, total, blocage sur-stock */}
+              <div className="overflow-x-auto rounded-md border border-line">
+                <table className="w-full text-[12.5px]">
+                  <thead>
+                    <tr className="border-b border-line bg-paper/70 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-mute">
+                      <th className="px-2.5 py-2">Produit</th>
+                      <th className="px-2 py-2 text-right">Stock dispo</th>
+                      <th className="px-2 py-2 text-right">Qté sortie</th>
+                      <th className="px-2 py-2 text-center">Unité</th>
+                      <th className="px-2 py-2">DLC la plus proche</th>
+                      <th className="px-2 py-2 text-right">PU HT</th>
+                      <th className="px-2 py-2 text-right">Total</th>
+                      <th className="w-9" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((l, i) => {
+                      const p = db.products.find((x) => x.id === l.productId);
+                      const entry = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null;
+                      const stockQty = entry ? entry.qty : 0;
+                      const pu = entry ? entry.avgCost : 0;
+                      const dlc = l.productId && cSite ? soonestExpiry(db, cSite, l.productId) : null;
+                      const over = !db.company.allowNegativeStock && p && l.qty > stockQty;
+                      const total = l.qty * pu;
+                      return (
+                        <tr key={i} className={`border-b border-line/70 last:border-0 ${over ? "bg-badbg/40" : ""}`}>
+                          <td className="px-1.5 py-1.5">
+                            <Select value={l.productId} onChange={(e) => { const np = db.products.find((x) => x.id === e.target.value); const ne = e.target.value && cSite ? entryOf(stocks, cSite, e.target.value) : null; setLines(lines.map((x, j) => j === i ? { ...x, productId: e.target.value, unitCost: ne ? ne.avgCost : 0 } : x)); }} className="h-8.5 min-w-48 text-[12.5px]">
+                              <option value="">— Choisir —</option>
+                              {db.products.filter((x) => x.status === "actif").map((p2) => <option key={p2.id} value={p2.id}>{p2.code} · {p2.name}</option>)}
+                            </Select>
+                          </td>
+                          <td className={`px-2 py-1.5 text-right tnum text-[11.5px] ${over ? "font-bold text-bad" : p ? "font-semibold text-ink2" : "text-mute"}`}>{p ? `${fmtNum(stockQty)} ${db.units.find((u) => u.id === p.unitId)?.code ?? ""}` : "—"}</td>
+                          <td className="px-1.5 py-1.5">
+                            <Input type="number" min={0} max={!db.company.allowNegativeStock && p ? stockQty : undefined} step="0.01" value={l.qty || ""} placeholder="0" onChange={(e) => { const v = parseFloat(e.target.value) || 0; setLines(lines.map((x, j) => j === i ? { ...x, qty: v } : x)); }} className={`h-8.5 w-24 text-right tnum ${over ? "border-bad ring-1 ring-bad" : ""}`} />
+                            {over && <p className="mt-1 text-[10px] font-bold text-bad">Stock insuffisant</p>}
+                          </td>
+                          <td className="px-2 py-1.5 text-center text-[11.5px] font-semibold text-mute">{p ? db.units.find((u) => u.id === p.unitId)?.code ?? "—" : "—"}</td>
+                          <td className="px-2 py-1.5 text-[11.5px] text-ink2">{dlc ? fmtDate(dlc.expiry) : <span className="text-mute">—</span>}</td>
+                          <td className="px-2 py-1.5 text-right tnum text-[11.5px] font-semibold">{p ? fmtMoney(pu, cur) : "—"}</td>
+                          <td className="px-2.5 py-1.5 text-right tnum font-bold">{p && l.qty ? fmtMoney(total, cur) : "—"}</td>
+                          <td className="py-1.5 pr-1.5 text-center"><button onClick={() => setLines(lines.filter((_, j) => j !== i))} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink2 hover:bg-pine-900/8" title="Supprimer"><X size={14} /></button></td>
+                        </tr>
+                      );
+                    })}
+                    {!lines.length && <tr><td colSpan={8} className="px-3 py-6 text-center text-[12.5px] text-mute">Aucune ligne — ajoutez des produits ci-dessous.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-2.5 flex items-center justify-between">
+                <Button variant="outline" size="sm" icon={<Plus size={14} />} onClick={() => setLines([...lines, { productId: "", qty: 0, unitCost: 0 }])}>Ajouter une ligne</Button>
+                <div className="text-right">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-mute">Total sortie (valorisé au coût moyen)</p>
+                  <p className="tnum font-display text-[16px] font-bold text-ink">{fmtMoney(lines.reduce((s, l) => { const e = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null; return s + l.qty * (e ? e.avgCost : 0); }, 0), cur)}</p>
+                  {lines.some((l) => { const e = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null; return l.productId && !db.company.allowNegativeStock && e && l.qty > e.qty; }) && <p className="mt-1 text-[11px] font-bold text-bad">Corrigez les lignes en sur-stock avant d'enregistrer.</p>}
+                </div>
+              </div>
               <Field label="Notes" className="mt-4">
                 <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Menu, événement…" />
               </Field>
@@ -181,7 +238,7 @@ export function ConsumptionsPage() {
           </div>
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-card px-4 py-3">
             <Button variant="outline" onClick={() => setShowNew(false)}>Annuler</Button>
-            <Button disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0)} onClick={create}>Enregistrer le brouillon</Button>
+            <Button disabled={!cSite || !lines.length || lines.some((l) => !l.productId || l.qty <= 0) || lines.some((l) => { const e = l.productId && cSite ? entryOf(stocks, cSite, l.productId) : null; return !!l.productId && !db.company.allowNegativeStock && !!e && l.qty > e.qty; })} onClick={create}>Enregistrer le brouillon</Button>
           </div>
         </div>
       )}
