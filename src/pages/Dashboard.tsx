@@ -475,41 +475,7 @@ export function Dashboard() {
           </div>
         </Card>
 
-        <Card title={<span className="flex items-center gap-2"><Flame size={14} className="text-pine-600" />Top produits consommés</span>} sub={`Sur ${days} jours, valorisés au coût moyen`}>
-          <ul className="space-y-3">
-            {data.topConso.length === 0 && (
-              <p className="py-8 text-center text-[12.5px] text-mute">Aucune consommation sur la période.</p>
-            )}
-            {data.topConso.map((t, i) => {
-              const max = data.topConso[0]?.value || 1;
-              return (
-                <li key={i} className="flex items-center gap-3 rounded-lg border border-line bg-paper px-3 py-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-pine-100 text-pine-700 ring-1 ring-pine-200">
-                    <Flame size={14} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2 text-[12.5px] leading-none">
-                      <span className="flex items-center gap-2 font-semibold text-ink">
-                        <span className="tnum flex h-5 w-5 items-center justify-center rounded bg-pine-900 font-mono text-[10px] font-bold text-white">{i + 1}</span>
-                        <span className="truncate">{t.name}</span>
-                      </span>
-                      <span className="tnum shrink-0 font-bold text-ink2">{fmtMoney(t.value, cur)}</span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white ring-1 ring-line">
-                      <div
-                        className="anim-grow h-full rounded-full bg-pine-600"
-                        style={{ width: `${(t.value / max) * 100}%`, transformOrigin: "left" }}
-                      />
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          <button onClick={() => nav("consommations")} className="mt-4 flex items-center gap-1 text-[12px] font-bold text-copper-600 hover:text-copper-500">
-            Journal des consommations <ArrowRight size={13} />
-          </button>
-        </Card>
+
       </div>
 
       <div className="mt-5 flex items-center gap-2 rounded-lg border border-dashed border-line2 bg-card/60 px-4 py-3 text-[12px] text-mute">
