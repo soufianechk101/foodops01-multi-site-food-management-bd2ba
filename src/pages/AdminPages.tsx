@@ -148,8 +148,10 @@ export function UsersPage() {
   const save = () => {
     if (!form.name.trim() || !form.username.trim()) return;
     const ok = act((d) => {
-      if ((form.role === "proprietaire" || editing?.role === "proprietaire") && me?.role !== "proprietaire")
-        throw new Error("Seul le Propriétaire peut créer, modifier ou retirer un compte Propriétaire.");
+      // Seul propriétaire ou admin peut toucher au compte propriétaire
+      const isPriv = me?.role === "proprietaire" || me?.role === "admin";
+      if ((form.role === "proprietaire" || editing?.role === "proprietaire") && !isPriv)
+        throw new Error("Seul le Propriétaire ou l'Admin peut créer ou modifier un compte Propriétaire.");
       const username = form.username.trim().toLowerCase();
       if (d.users.some((u) => u.username === username && u.id !== form.id))
         throw new Error(`Le nom d'utilisateur « ${username} » existe déjà.`);
@@ -173,11 +175,31 @@ export function UsersPage() {
 
   const toggleActive = (u: User) => {
     if (u.id === me?.id) return;
-    if (u.role === "proprietaire" && me?.role !== "proprietaire") return;
+    const isPriv = me?.role === "proprietaire" || me?.role === "admin";
+    if (u.role === "proprietaire" && !isPriv) return;
     setConfirm({
       title: u.active ? "Désactiver le compte ?" : "Réactiver le compte ?",
       msg: u.active ? `${u.name} ne pourra plus se connecter. L'historique de ses actions est conservé dans le journal d'audit.` : `${u.name} pourra de nouveau se connecter.`,
       fn: () => act((d) => { const x = d.users.find((y) => y.id === u.id); if (x) x.active = !x.active; }, `Compte ${u.active ? "désactivé" : "réactivé"}.`),
+    });
+  };
+
+  const removeUser = (u: User) => {
+    if (u.id === me?.id) {
+      setConfirm({ title: "Action impossible", msg: "Vous ne pouvez pas supprimer votre propre compte.", fn: () => {} });
+      return;
+    }
+    const isPriv = me?.role === "proprietaire" || me?.role === "admin";
+    if (u.role === "proprietaire" && !isPriv) return;
+    const activeAdmins = db.users.filter((x) => x.active && (x.role === "admin" || x.role === "proprietaire") && x.id !== u.id).length;
+    if ((u.role === "admin" || u.role === "proprietaire") && u.active && activeAdmins === 0) {
+      setConfirm({ title: "Suppression refusée", msg: "Il doit rester au moins un administrateur/propriétaire actif. Désignez d'abord un remplaçant.", fn: () => {} });
+      return;
+    }
+    setConfirm({
+      title: `Supprimer ${u.name} ?`,
+      msg: `Le compte « ${u.username} » sera définitivement supprimé. Ses mouvements et documents restent conservés (traçabilité). Cette action est irréversible.`,
+      fn: () => act((d) => { d.users = d.users.filter((x) => x.id !== u.id); pushAudit(d, { userId: me!.id, action: "DELETE", module: "Utilisateurs", detail: `Utilisateur ${u.name} (@${u.username}) supprimé`, siteId: null }); }, `Utilisateur ${u.name} supprimé.`),
     });
   };
 
@@ -229,11 +251,14 @@ export function UsersPage() {
       label: "Actions",
       render: (u) => (
         <div className="flex items-center justify-end gap-1">
-          {can("users.edit") && (u.role !== "proprietaire" || me?.role === "proprietaire") && (
+          {can("users.edit") && (u.role !== "proprietaire" || me?.role === "proprietaire" || me?.role === "admin") && (
             <Button size="sm" variant="ghost" onClick={() => { setForm({ id: u.id, name: u.name, username: u.username, password: "", role: u.role, siteIds: u.siteIds, allowedRoutes: u.allowedRoutes ?? null, active: u.active }); setEditing(u); setShowNew(true); }} icon={<Pencil size={13} />}>Modifier</Button>
           )}
-          {can("users.edit") && u.id !== me?.id && (u.role !== "proprietaire" || me?.role === "proprietaire") && (
+          {can("users.edit") && u.id !== me?.id && (u.role !== "proprietaire" || me?.role === "proprietaire" || me?.role === "admin") && (
             <Button size="sm" variant="ghost" onClick={() => toggleActive(u)}>{u.active ? "Désactiver" : "Réactiver"}</Button>
+          )}
+          {can("users.delete") && u.id !== me?.id && (u.role !== "proprietaire" || me?.role === "proprietaire" || me?.role === "admin") && (
+            <Button size="sm" variant="ghost" onClick={() => removeUser(u)} className="text-bad hover:bg-badbg">Supprimer</Button>
           )}
         </div>
       ),
