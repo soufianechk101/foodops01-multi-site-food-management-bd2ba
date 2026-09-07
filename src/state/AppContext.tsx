@@ -157,10 +157,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           if (parsed && typeof parsed === "object" && (Object.prototype.hasOwnProperty.call(parsed, "__proto__") || Object.prototype.hasOwnProperty.call(parsed, "constructor"))) {
             throw new Error("Données corrompues : pollution détectée.");
           }
-          if (parsed.version === 6 && Array.isArray(parsed.movements)) {
+          if (parsed.version === 7 && Array.isArray(parsed.movements)) {
             currentDb = parsed;
-          } else if (parsed.version === 5 && Array.isArray(parsed.movements)) {
-            // Migration v5 → v6 : nettoyage complet, on garde seulement produits/fournisseurs/Admin
+          } else if ((parsed.version === 5 || parsed.version === 6) && Array.isArray(parsed.movements)) {
+            // Migration v5/v6 → v7 : nettoyage complet, on garde seulement produits/fournisseurs/Admin
             currentDb = buildCleanSeed();
             // On conserve le nom de société personnalisé si l'utilisateur l'avait changé
             if (parsed.company) currentDb.company = { ...currentDb.company, ...parsed.company };

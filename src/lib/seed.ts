@@ -170,7 +170,7 @@ function refData() {
 export function buildCleanSeed(): DB {
   const ref = refData();
   return {
-    version: 6,
+    version: 7,
     seededAt: nowISO(),
     company: {
       name: "FoodOps Demo",
