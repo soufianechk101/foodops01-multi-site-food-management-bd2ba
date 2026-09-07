@@ -157,7 +157,7 @@ export function ConsumptionsPage() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-            <div className="mx-auto max-w-4xl rounded-xl border border-line bg-card p-5 shadow-sm">
+            <div className="mx-auto max-w-6xl rounded-xl border border-line bg-card p-5 shadow-sm lg:p-6">
               <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Field label="Site">
                   <Select value={cSite} onChange={(e) => setCSite(e.target.value)}>
