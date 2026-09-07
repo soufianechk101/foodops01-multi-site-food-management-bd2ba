@@ -6,6 +6,7 @@ import { EmptyState } from "./components/ui";
 import { Lock } from "lucide-react";
 import type { RefTab } from "./pages/Referentiel";
 import { PdfPrintProvider } from './pdf/components/PdfPrintManager';
+import { ActivationGate } from "./components/ActivationGate";
 
 /* Chargement paresseux (code-splitting) : chaque page devient un morceau
    séparé, chargé uniquement quand l'utilisateur y accède. */
@@ -106,6 +107,7 @@ function Shell() {
   const { user } = useApp();
   if (!user) return <Login />;
   return (
+    <ActivationGate>
     <Layout>
       <Suspense
         fallback={
@@ -115,6 +117,7 @@ function Shell() {
         <Router />
       </Suspense>
     </Layout>
+    </ActivationGate>
   );
 }
 

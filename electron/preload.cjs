@@ -4,7 +4,6 @@
    Aucune API Node.js n'est exposée directement au renderer.
    ============================================================ */
 const { contextBridge, ipcRenderer } = require("electron");
-
 contextBridge.exposeInMainWorld("foodopsDesktop", {
   /** Informations d'environnement (plateforme, version, dossier de données). */
   environment: () => ipcRenderer.invoke("foodops:environment"),
@@ -12,4 +11,8 @@ contextBridge.exposeInMainWorld("foodopsDesktop", {
   chooseBackupFile: () => ipcRenderer.invoke("foodops:choose-backup-file"),
   /** Écrit une sauvegarde dans le dossier de données applicatives. */
   writeBackup: (name, content) => ipcRenderer.invoke("foodops:write-backup", { name, content }),
+  /** Activation */
+  activationStatus: () => ipcRenderer.invoke("foodops:activation-status"),
+  activate: (code) => ipcRenderer.invoke("foodops:activate", code),
+  deactivate: () => ipcRenderer.invoke("foodops:deactivate"),
 });

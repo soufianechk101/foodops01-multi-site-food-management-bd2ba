@@ -1,5 +1,8 @@
 {
   "name": "foodops-desktop",
+  "version": "1.0.0",
+  "description": "FoodOps — F&B Control Suite (offline-first multi-site)",
+  "author": "FoodOps Demo SARL",
   "main": "electron/main.cjs",
   "private": true,
   "type": "module",
