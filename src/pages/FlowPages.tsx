@@ -404,8 +404,8 @@ export function InventoriesPage() {
               <p className="text-[11.5px] text-mute">{fmtDate(saisieLive.date)} · <StatusBadge status={saisieLive.status} /> {saisieLive.status === "en_cours" ? "— saisissez les quantités comptées" : "— lecture seule (validé/annulé)"}</p>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-            <div className="mx-auto max-w-6xl rounded-xl border border-line bg-card p-5 shadow-sm lg:p-6">
+          <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
+            <div className="mx-auto max-w-6xl rounded-xl border border-line bg-card p-6 shadow-sm">
               <div className="overflow-x-auto rounded-md border border-line">
                 <table className="w-full text-[12.5px]">
                   <thead>

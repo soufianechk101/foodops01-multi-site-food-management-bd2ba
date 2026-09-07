@@ -169,8 +169,8 @@ export function ConsumptionsPage() {
               <p className="text-[11.5px] text-mute">Brouillon — le stock ne diminue qu'à la validation depuis la liste.</p>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-            <div className="mx-auto max-w-6xl rounded-xl border border-line bg-card p-5 shadow-sm lg:p-6">
+          <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
+            <div className="mx-auto max-w-6xl rounded-xl border border-line bg-card p-6 shadow-sm">
               <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Field label="Site">
                   <Select value={cSite} onChange={(e) => setCSite(e.target.value)}>
