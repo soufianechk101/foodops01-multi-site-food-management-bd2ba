@@ -10,7 +10,7 @@ import {
 } from "react";
 import localforage from "localforage";
 import type { DB, ID, Site, User } from "../types";
-import { buildCleanSeed, buildSeed } from "../lib/seed";
+import { buildCleanSeed } from "../lib/seed";
 import { checkSiteAccess, pushAudit } from "../lib/engine";
 import { hashPw, nowISO } from "../lib/util";
 
@@ -373,7 +373,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!user || !db) return [];
     const active = db.sites.filter((s) => s.status === "actif");
     return user.siteIds === "all" ? active : active.filter((s) => (user.siteIds as ID[]).includes(s.id));
-  }, [db?.sites, user]);
+  }, [db, user]);
 
   const checkSite = useCallback(
     (sid: ID): boolean => {

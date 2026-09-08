@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Boxes, Flame, History, Percent, Receipt, ShoppingBag, Soup, Trash2, Users, Wallet, Clock } from "lucide-react";
+import { AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Boxes, Flame, History, Receipt, ShoppingBag, Soup, Trash2, Users, Wallet, Clock } from "lucide-react";
 import {
   Area,
   AreaChart,

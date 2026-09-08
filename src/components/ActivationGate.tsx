@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, KeyRound, Clock, Crown, LogOut } from "lucide-react";
+import { ShieldCheck, KeyRound, Clock, Crown } from "lucide-react";
 import { Button, Input, Field } from "./ui";
 
 type Status = {

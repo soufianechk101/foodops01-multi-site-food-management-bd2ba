@@ -3,7 +3,7 @@
    Couche centralisée de validation des données
    ============================================================ */
 
-import type { DB, ID, Product, Site, User } from "../types";
+import type { DB, ID } from "../types";
 
 export function assertFinite(n: number, what: string): void {
   if (!isFinite(n)) throw new Error(`${what} doit être un nombre valide (pas NaN ou Infinity).`);

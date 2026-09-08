@@ -30,7 +30,6 @@ import {
   type Col,
   type EditLine,
 } from "../components/ui";
-import { SitePrompt } from "./StockPages";
 import {
   approveTransfer,
   cancelInventory,
@@ -294,7 +293,6 @@ export function InventoriesPage() {
     if (ok && newId) {
       setShowCreate(false);
       setInvCat("");
-      const created = db.inventories.find((x) => x.id === newId) ?? null; // fallback, will be updated via re-render
       // open saisie after state update — use timeout to let db refresh, or directly set id
       setSaisieId(newId);
       // init actuals empty

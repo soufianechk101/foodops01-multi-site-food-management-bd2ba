@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from "react";
 import {
-  Building2,
   Database,
   Download,
   Pencil,
@@ -29,7 +28,6 @@ import {
   SearchInput,
   Select,
   Tabs,
-  Textarea,
   cn,
   type Col,
 } from "../components/ui";

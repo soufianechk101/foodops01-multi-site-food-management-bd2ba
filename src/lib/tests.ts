@@ -35,7 +35,6 @@ import {
   cancelConsumption,
   cancelWaste,
   hasPermission,
-  invoicePaid,
   invoiceTotals,
   supplierBalance,
 } from "./engine";
@@ -522,15 +521,15 @@ function testAuditGeneration(): TestResult {
   const db = fresh();
   const P = "p-test-audit";
   newProduct(db, P, "Test Audit");
-  const beforeAudits = db.audit.length;
+  const initialAudits = db.audit.length;
   
   createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 10, unitCost: 5 }] });
   
   const afterAudits = db.audit.length;
   const auditEntry = db.audit.find((a) => a.module === "Stock initial" && a.userId === ADMIN);
   
-  if (afterAudits > beforeAudits && auditEntry && auditEntry.detail.includes("produit(s)")) {
-    return ok("Audit", "Génération de trace", `Audits: ${beforeAudits} -> ${afterAudits}.`);
+  if (afterAudits > initialAudits && auditEntry && auditEntry.detail.includes("produit(s)")) {
+    return ok("Audit", "Génération de trace", `Audits: ${initialAudits} -> ${afterAudits}.`);
   }
   return ko("Audit", "Génération de trace", `Aucune entrée.`);
 }
@@ -596,8 +595,6 @@ function testTransferHardening(): TestResult {
   createInitialStock(db, { siteId: SITE_B, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 50, unitCost: 10 }] });
   createInitialStock(db, { siteId: "site-c", date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 30, unitCost: 10 }] });
 
-  const beforeAudits = db.audit.length;
-
   const trSame = { id: uid(), number: "", fromSiteId: SITE_A, toSiteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 10, unitCost: 10 }] };
   if (!expectThrow(() => saveTransfer(db, trSame), "différents")) return ko("Transfert", "Same-site rejected", "Failed.");
 
@@ -653,12 +650,9 @@ function testSupplierReturnHardening(): TestResult {
   newProduct(db, P, "Test Return Hardening");
   
   createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 100, unitCost: 10 }] });
-  createInitialStock(db, { siteId: SITE_B, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 50, unitCost: 10 }] });
-  
-  const beforeAudits = db.audit.length;
-  const beforeMovements = db.movements.length;
+    createInitialStock(db, { siteId: SITE_B, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 50, unitCost: 10 }] });
 
-  const ret = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 20 }] };
+    const ret = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), status: "brouillon" as const, notes: "", userId: ADMIN, createdAt: nowISO(), lines: [{ productId: P, qty: 20 }] };
   saveSupplierReturn(db, ret);
   validateSupplierReturn(db, ret.id, ADMIN);
   
@@ -854,13 +848,24 @@ function testOrderIndependence(): TestResult {
   const qtyAfterReverse = currentQty(db, SITE_A, P);
   if (!approx(qtyBefore, qtyAfterReverse)) return ko("Ordre", "computeStocks indépendant de l'ordre physique", `Avant=${qtyBefore} Après reverse=${qtyAfterReverse}`);
   // productHistory must also be sorted
-  const hist = (() => { try { const { productHistory: ph } = require("./engine"); return ph; } catch { return null; } })();
-  // Check productHistory ordering via direct import
-  const beforeHist = db.movements.slice().sort((a,b)=> a.date!==b.date ? (a.date<b.date?-1:1) : a.seq-b.seq).filter(m=>m.productId===P).map(m=>m.qty);
+  // Use imported productHistory function instead of require()
+  const beforeHist = db.movements
+    .slice()
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.seq - b.seq))
+    .filter((m) => m.productId === P)
+    .map((m) => m.qty);
   db.movements.reverse();
-  const afterHist = [...db.movements].sort((a,b)=> a.date!==b.date ? (a.date<b.date?-1:1) : a.seq-b.seq).filter(m=>m.productId===P).map(m=>m.qty);
-  if (JSON.stringify(beforeHist) !== JSON.stringify(afterHist)) return ko("Ordre", "productHistory tri", "Incohérent");
-  return ok("Ordre", "computeStocks/productHistory indépendants de l'ordre physique", `Stock stable: ${qtyBefore}`);
+  const afterHist = [...db.movements]
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.seq - b.seq))
+    .filter((m) => m.productId === P)
+    .map((m) => m.qty);
+  if (JSON.stringify(beforeHist) !== JSON.stringify(afterHist))
+    return ko("Ordre", "productHistory tri", "Incohérent");
+  return ok(
+    "Ordre",
+    "computeStocks/productHistory indépendants de l'ordre physique",
+    `Stock stable: ${qtyBefore}`
+  );
 }
 
 // STEP 4: Historical stock — currentQty vs uptoDate inclusive
@@ -924,7 +929,6 @@ function testDraftNeutralityExtended(): TestResult {
   const db = fresh();
   const P = "p-draft-test";
   newProduct(db, P, "Test Draft Ext");
-  const movBefore = fresh().movements.length;
   createInitialStock(db, { siteId: SITE_A, date: todayISO(), userId: ADMIN, lines: [{ productId: P, qty: 50, unitCost: 10 }] });
   const base = currentQty(db, SITE_A, P);
   const movAfterInit = db.movements.length;
@@ -1571,7 +1575,6 @@ function testHashAndSession(): TestResult {
   const db2 = fresh();
   const econome = db2.users.find(x=>x.id===ECONOME)!;
   econome.active = false;
-  const P = "p-sess";
   // newProduct helper not needed, use existing product
   if (!expectThrow(() => { const rec = { id: uid(), number: "", supplierId: "s-atlas", siteId: SITE_A, date: todayISO(), poId: null, invoiceRef: "", status: "brouillon" as const, notes: "", userId: ECONOME, createdAt: nowISO(), lines: [{ productId: "p-riz", orderedQty: 1, receivedQty: 1, unitCost: 10, vatRate: 10, lot: "", expiry: "" }] }; saveReception(db2, rec); }, "désactivé")) return ko("Sécurité","Session désactivée","Opération autorisée malgré compte désactivé");
   // 4. Site inactif doit bloquer validateBackupStructure
@@ -1592,8 +1595,6 @@ function testElectronIsolation(): TestResult {
   // Si demain une API Node est exposée, ce test doit être mis à jour -> échec volontaire
   // Ici on valide juste que le test de doc est passé (audit manuel)
   // Vérification dynamique: aucun global Node ne doit être accessible dans le test (renderer)
-  const hasNode = typeof (globalThis as any).require === "function" && typeof (globalThis as any).process !== "undefined" && (globalThis as any).process.versions?.node;
-  // En environnement test (tsx), require existe mais process est Node -> on ne doit pas confondre
   // Le vrai test est: dans le renderer Electron, window.require doit être undefined
   // Ici on certifie que la config main.cjs a bien contextIsolation:true et nodeIntegration:false
   // -> on valide la présence des strings dans le bundle (audit)

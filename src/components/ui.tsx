@@ -11,7 +11,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertTriangle,
   Check,
   ChevronDown,
   ChevronLeft,

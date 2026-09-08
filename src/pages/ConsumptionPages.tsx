@@ -12,7 +12,6 @@ import {
   Field,
   Gauge,
   Input,
-  LineEditor,
   Modal,
   PageHead,
   Select,
@@ -51,7 +50,7 @@ import {
    CONSOMMATIONS
    ============================================================ */
 export function ConsumptionsPage() {
-  const { db, siteId, allowedSites, act, can, siteName, nav } = useApp();
+  const { db, siteId, allowedSites, act, can, siteName } = useApp();
   const userId = useUserId();
   const cur = db.company.currency;
   const [showNew, setShowNew] = useState(false);
@@ -214,7 +213,7 @@ export function ConsumptionsPage() {
                       return (
                         <tr key={i} className={`border-b border-line/70 last:border-0 ${over ? "bg-badbg/40" : ""}`}>
                           <td className="px-1.5 py-1.5">
-                            <Select value={l.productId} onChange={(e) => { const np = db.products.find((x) => x.id === e.target.value); const ne = e.target.value && cSite ? entryOf(stocks, cSite, e.target.value) : null; setLines(lines.map((x, j) => j === i ? { ...x, productId: e.target.value, unitCost: ne ? ne.avgCost : 0 } : x)); }} className="h-8.5 min-w-48 text-[12.5px]">
+                            <Select value={l.productId} onChange={(e) => { const ne = e.target.value && cSite ? entryOf(stocks, cSite, e.target.value) : null; setLines(lines.map((x, j) => j === i ? { ...x, productId: e.target.value, unitCost: ne ? ne.avgCost : 0 } : x)); }} className="h-8.5 min-w-48 text-[12.5px]">
                               <option value="">— Choisir —</option>
                               {db.products.filter((x) => x.status === "actif").map((p2) => <option key={p2.id} value={p2.id}>{p2.code} · {p2.name}</option>)}
                             </Select>

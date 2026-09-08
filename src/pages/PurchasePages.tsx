@@ -8,7 +8,6 @@ import { ReceptionPdf, type ReceptionPdfModel } from '../pdf/templates/Reception
 import {
   Badge,
   Button,
-  Card,
   Confirm,
   DataTable,
   EmptyState,
@@ -622,7 +621,6 @@ export function InvoicesPage() {
   const [payFor, setPayFor] = useState<Invoice | null>(null);
   const [fSup, setFSup] = useState("");
   const [fSite, setFSite] = useState(siteId ?? "");
-  const [fDate, setFDate] = useState(todayISO());
   const [fDue, setFDue] = useState(todayISO());
   const [fLines, setFLines] = useState<{ description: string; amount: number; vatRate: number }[]>([]);
   const [filterSup, setFilterSup] = useState("");
@@ -645,7 +643,7 @@ export function InvoicesPage() {
           number: "",
           supplierId: fSup,
           siteId: fSite,
-          date: fDate,
+          date: todayISO(),
           dueDate: fDue,
           lines: fLines,
           userId,

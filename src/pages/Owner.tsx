@@ -197,7 +197,6 @@ export function OwnerPage() {
   const bigRev = useCountUp(Math.round(data.revenue));
   const kpiRev = useCountUp(Math.round(data.revenue));
   const kpiConso = useCountUp(Math.round(data.conso));
-  const kpiWaste = useCountUp(Math.round(data.waste));
   const kpiStock = useCountUp(Math.round(data.stockValue));
   const kpiCredit = useCountUp(Math.round(data.due + data.overdue));
   const kpiCovers = useCountUp(data.covers);

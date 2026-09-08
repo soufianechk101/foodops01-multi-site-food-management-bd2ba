@@ -10,13 +10,11 @@ import {
   invoiceStatus,
   invoiceTotals,
   stockStatus,
-  supplierBalance,
 } from "../lib/engine";
 import {
   addDaysISO,
   downloadFile,
   fmtDate,
-  fmtMoney,
   fmtNum,
   fmtPct,
   monthKey,
@@ -463,8 +461,7 @@ const REPORTS: ReportDef[] = [
 ];
 
 export function ReportsPage() {
-  const { db, siteId, allowedSites, user, siteName } = useApp();
-  const cur = db.company.currency;
+  const { db, siteId, allowedSites, siteName } = useApp();
   const [selected, setSelected] = useState(REPORTS[0].id);
   const [from, setFrom] = useState(addDaysISO(todayISO(), -30));
   const [to, setTo] = useState(todayISO());
